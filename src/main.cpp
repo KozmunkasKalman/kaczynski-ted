@@ -8,7 +8,7 @@
 
 
 enum Mode {
-  NORMAL, WRITE, SELECT, MOVE, SAVE, SHELL
+  NORMAL, WRITE, SELECT, MOVE, SAVE, NEW, SHELL
 };
 
 Mode mode = NORMAL;
@@ -62,6 +62,8 @@ void updatescreen() {
     bottomline = " MOVE     | " + filename;
   } else if (mode == SAVE) {
     bottomline = " SAVE AS  | " + input;
+  } else if (mode == NEW) {
+    bottomline = " NEW FILE | " + input;
   } else if (mode == SHELL) {
     bottomline = " SHELL    | $ " + input;
   }
@@ -93,7 +95,7 @@ void move_up() {
 void move_down() {
   if (cur_line < buffer.size() - 1) {
     cur_line++;
-    if (cur_line > lines - 3) {
+    if (cur_line - scr_offset >= lines - 2) {
       scr_offset++;
     }
   }
@@ -123,8 +125,8 @@ void move_right() {
 void delchar(int del_offset) {
   if (del_offset != 0) {
     if (cur_char > 0) {
-      buffer[cur_line].erase(cur_char + 1, 1);
-      cur_char = cur_char + 1;
+      buffer[cur_line].erase(cur_char - 1, 1);
+      cur_char--;
     } else if (cur_line > 0) {
       int prev = buffer[cur_line - 1].size();
       buffer[cur_line - 1] += buffer[cur_line];
@@ -254,6 +256,14 @@ int main(int argc, char* argv[]){
     while (std::getline(in, line)) {
       buffer.push_back(line);
     }
+  } else {
+    filename = "";
+    mode = NEW;
+    setbottomline = " NEW FILE | ...";  
+  }
+
+  if (buffer.empty()) {
+    buffer.push_back("");
   }
 
   initscr();
@@ -360,7 +370,9 @@ int main(int argc, char* argv[]){
         input.clear();
         mode = NORMAL;
       } else if (ch == 263) { // backspace => delete before cursor
-        input.pop_back();
+        if (!input.empty()) {
+          input.pop_back();
+        }
       } else if (ch == '\n') {
         std::string cmdout = run_shellcmd(input);
         insertstring(cmdout);
@@ -374,12 +386,36 @@ int main(int argc, char* argv[]){
         mode = NORMAL;
         input.clear();
       } else if (ch == 263) { // backspace => delete before cursor
-        input.pop_back();
+        if (!input.empty()) {
+          input.pop_back();
+        }
       } else if (ch == '\n') {
-        filename = input;
-        input.clear();
-        save();
-        mode = NORMAL;
+        if (!input.empty()) {
+          filename = input;
+          input.clear();
+          save();
+          mode = NORMAL;
+        } else {
+          setbottomline = " SAVE AS  | Error: No file name. Please input a filename.";  
+
+        }
+      } else {
+        input.push_back(ch);
+      }
+    } else if (mode == NEW) {
+      if (ch == 263) { // backspace => delete before cursor
+        if (!input.empty()) {
+          input.pop_back();
+        }
+      } else if (ch == '\n') {
+        if (!input.empty()) {
+          filename = input;
+          input.clear();
+          save();
+          mode = NORMAL;
+        } else {
+          setbottomline = " NEW FILE | Error: No file name. Please input a filename.";  
+        }
       } else {
         input.push_back(ch);
       }
@@ -388,7 +424,7 @@ int main(int argc, char* argv[]){
     if (cur_line >= buffer.size()) {
       cur_line = buffer.size() - 1;
     }
-    if (cur_line > buffer[cur_line].size()) {
+    if (cur_char > buffer[cur_line].size()) {
       cur_char = buffer[cur_line].size();
     }
 
