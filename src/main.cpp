@@ -9,7 +9,7 @@
 
 
 enum Mode {
-  NONE, NORMAL, WRITE, SELECT, MOVE, GOTO, SAVE, NEW, SHELL
+  NONE, NORMAL, WRITE, SELECT, MOVE, GOTO, SAVE, OPEN, NEW, SHELL
 };
 
 Mode mode = NONE;
@@ -29,12 +29,6 @@ std::string input;
 
 bool ins_over = false;
 bool scr_lock = false;
-
-
-
-bool isnumber(const std::string &s) {
-  return !s.empty() && std::all_of(s.begin(), s.end(), ::isdigit);
-}
 
 
 
@@ -61,7 +55,7 @@ void updatescreen() {
   mvhline(lines - 2, 0, '-', cols);
 
   if (bottomline.empty()) {
-    // switch statement didnt work, stuck with if-else if-else wall
+    // switch statement didnt work, stuck with if - else if - else wall
     if (mode == NONE) {
       bottomline = "          | [O]pen file   [N]ew file   [Q]uit ";
     } else if (mode == NORMAL) {
@@ -80,6 +74,8 @@ void updatescreen() {
       } else {
         bottomline = " SAVE AS  | " + input;
       }
+    } else if (mode == OPEN) {
+      bottomline = " OPEN     | " + input;
     } else if (mode == NEW) {
       if (input.empty()) {
         bottomline = " NEW FILE | ...";  
@@ -100,6 +96,77 @@ void updatescreen() {
   move(cur_line - scr_offset, linenum_digits + 4 + cur_char);
 
   refresh();
+}
+
+
+
+std::string run_shellcmd(std::string cmd) {
+  std::string output;
+
+  FILE* pipe = popen(cmd.c_str(), "r");
+
+  if (!pipe) {
+    output = "[error]";
+    return output;
+  }
+
+  char cmdbuf[4096];
+  while (fgets(cmdbuf, sizeof(cmdbuf), pipe)) {
+    std::string line(cmdbuf);
+    if (!line.empty() && line.back() == '\n')
+      line.pop_back();
+    output = output + line + "\n";
+  }
+
+  bottomline = " SHELL    | > " + output;
+
+  pclose(pipe);
+
+  return output;
+}
+
+
+
+void save() {
+  std::ofstream out(filename);
+  for (auto& line : buffer) {
+    out << line << "\n";
+  }
+  bottomline = " SAVED    | " + filename;
+}
+void save_nomsg() {
+  std::ofstream out(filename);
+  for (auto& line : buffer) {
+    out << line << "\n";
+  }
+}
+
+void new_file(std::string name) {
+  buffer.clear();
+  buffer.push_back("");
+  filename = name;
+  save();
+}
+
+bool check_if_file_exists(std::string name) {
+  std::ifstream f(name.c_str());
+  return f.good();
+}
+
+void open_file(std::string file) {
+  if (check_if_file_exists(file)) {
+    buffer.clear();
+    filename = file;
+    std::ifstream in(filename);
+    std::string line;
+    while (std::getline(in, line)) {
+      buffer.push_back(line);
+    }
+    mode = NORMAL;
+    bottomline = " NORMAL   | " + filename;
+  } else {
+    bottomline = " OPEN     | Error: File \"" + file + "\" doesn't exist.";
+  }
 }
 
 
@@ -141,6 +208,18 @@ void move_right() {
     move_down();
     cur_char = 0;
   }
+}
+
+
+
+void mode_normal() {
+  mode = NORMAL;
+  bottomline = " NORMAL   | " + filename;
+}
+void mode_open() {
+  mode = OPEN;
+  buffer.clear();
+  buffer.push_back(" " + run_shellcmd("find . -type f -maxdepth 1 -printf '%f '"));
 }
 
 
@@ -200,53 +279,6 @@ void newline() {
 
 
 
-void open_file(char* file) {
-  filename = file;
-  std::ifstream in(filename);
-  std::string line;
-  while (std::getline(in, line)) {
-    buffer.push_back(line);
-  }
-  mode = NORMAL;
-}
-
-void save() {
-  std::ofstream out(filename);
-  for (auto& line : buffer) {
-    out << line << "\n";
-  }
-  bottomline = " SAVED    | " + filename;
-}
-
-
-
-std::string run_shellcmd(std::string cmd) {
-  std::string output;
-
-  FILE* pipe = popen(cmd.c_str(), "r");
-
-  if (!pipe) {
-    output = "[error]";
-    return output;
-  }
-
-  char cmdbuf[4096];
-  while (fgets(cmdbuf, sizeof(cmdbuf), pipe)) {
-    std::string line(cmdbuf);
-    if (!line.empty() && line.back() == '\n')
-      line.pop_back();
-    output = output + line + "\n";
-  }
-
-  bottomline = " SHELL    | > " + output;
-
-  pclose(pipe);
-
-  return output;
-}
-
-
-
 void insertstring(std::string string) {
   if (string.empty()) { return; }
 
@@ -271,8 +303,6 @@ void insertstring(std::string string) {
   cur_line += str_vect.size() - 1;
   cur_char = buffer[cur_line + str_vect.size() - 1].size() - tail.size();
 }
-
-
 
 
 
@@ -310,14 +340,14 @@ int main(int argc, char* argv[]) {
       bottomline = "";
     }
 
-    // switch statement didnt work, stuck with if-else if-else wall
+    // switch statement didnt work, stuck with if - else if - else wall
     if (mode == NONE) {
-      if (ch == 'Q' || ch == 'q' || ch == 'X' || ch == 'x') { // Q => quit
-        break;
-      } else if (ch == 'N' || ch == 'n') {
+      if (ch == 'O' || ch == 'o') { // O => open file
+        mode_open(); 
+      } else if (ch == 'N' || ch == 'n') { // N => new file
         mode = NEW;
-      } else if (ch == 'O' || ch == 'o') {
-        break; // not implemented yet
+      } else if (ch == 'Q' || ch == 'q') { // Q => quit
+        break;
       }
     } else if (mode == NORMAL) {
       if (ch == '\n') { // enter => write mode
@@ -347,6 +377,10 @@ int main(int argc, char* argv[]) {
       } else if (ch == 'X') { // X => save & quit
         save();
         break;
+      } else if (ch == 'O') { // o => open file
+        mode_open();
+      } else if (ch == 'N') { // n => new file
+        mode = NEW;
       } else if (ch == 'd' || ch == 330) { // d | delete => delete at cursor 
         delchar(0);
       } else if (ch == 263) { // backspace => in normal mode moves cursor left
@@ -355,13 +389,13 @@ int main(int argc, char* argv[]) {
         delline();
       } else if (ch == 'x') { // x => select line        
 
-      } else if (ch == 'T') { // T => top line
+      } else if (ch == 't') { // t => top of buffer
         cur_line = 0;
         scr_offset = 0;
         if (cur_char > buffer[0].size() - 1) {
           cur_char = buffer[0].size();
         }
-      } else if (ch == 'B') { // B => bottom line
+      } else if (ch == 'b') { // b => bottom of buffer
         cur_line = buffer.size() - 1;
         scr_offset = buffer.size() - (lines - 2);
         if (cur_char > buffer[cur_line].size()) {
@@ -372,21 +406,32 @@ int main(int argc, char* argv[]) {
       } else if (ch == KEY_END) { // home => start of line
         cur_char = buffer[cur_line].size();
       } else if (ch == 339) { // pgup => scroll up
-        cur_line = buffer.size() - 1;
-        scr_offset = buffer.size() - (lines - 2);
-        if (cur_char > buffer[cur_line].size()) {
-          cur_char = buffer[cur_line].size();
+        if (cur_line - (lines - 2) < 0) {
+          cur_line = 0;
+          scr_offset = 0;
+          if (cur_char > buffer[0].size() - 1) {
+            cur_char = buffer[0].size();
+          }
+        } else {
+          // this might cause crash in some edge cases, but im unable to find such
+          cur_line = cur_line - (lines - 3);
+          scr_offset = cur_line;
         }
       } else if (ch == 338) { // pgdn => scroll down
-        cur_line = buffer.size() - 1;
-        scr_offset = buffer.size() - (lines - 2);
-        if (cur_char > buffer[cur_line].size()) {
-          cur_char = buffer[cur_line].size();
+        if (cur_line + (lines - 2) > buffer.size()) {
+          cur_line = buffer.size() - 1;
+          scr_offset = buffer.size() - (lines - 2);
+          if (cur_char > buffer[cur_line].size()) {
+            cur_char = buffer[cur_line].size();
+          }
+        } else {
+          cur_line = cur_line + (lines - 2);
+          scr_offset = cur_line - (lines - 3);
         }
       }
     } else if (mode == WRITE) {
       if (ch == 27) { // escape => normal mode
-        mode = NORMAL;
+        mode_normal();
       } else if (ch == KEY_UP) {
         move_up();
       } else if (ch == KEY_DOWN) {
@@ -401,69 +446,64 @@ int main(int argc, char* argv[]) {
         delchar(0);
       } else if (ch == '\n') { // enter => new line
         newline();
-      } else {
+      } else if (std::isprint(ch) or std::isspace(ch)) {
         buffer[cur_line].insert(cur_char, 1, ch);
         cur_char++;
       }
     } else if (mode == SELECT) {
       if (ch == 27) { // escape => normal mode
-        mode = NORMAL;
+        mode_normal();
       } else {
-        insertstring("SELECT mode not implemented yet\n");
+        bottomline = " SELECT   | Error: SELECT mode not implemented yet.";  
       }
     } else if (mode == MOVE) {
       if (ch == 27) { // escape => normal mode
-        mode = NORMAL;
+        mode_normal();
       } else {
-        insertstring("MOVE mode not implemented yet\n");
+        bottomline = " MOVE     | Error: MOVE mode not implemented yet.";  
       }
     } else if (mode == GOTO) {
       if (ch == 27) { // escape => normal mode
-        mode = NORMAL;
         input.clear();
+        mode_normal();
       } else if (ch == 263) { // backspace => delete before cursor
         if (!input.empty()) {
           input.pop_back();
         }
       } else if (ch == '\n') {
         if (!input.empty()) {
-          if (isnumber(input)) {
-            int inputnum;
-            std::stringstream inpststr(input);
-            inpststr >> inputnum;
-            if (inputnum > 0 && inputnum <= buffer.size()) {
-              cur_line = inputnum - 1;
-              if (buffer.size() <= lines - 2) {
+          int inputnum;
+          std::stringstream inpststr(input);
+          inpststr >> inputnum;
+          if (inputnum > 0 && inputnum <= buffer.size()) {
+            cur_line = inputnum - 1;
+            if (buffer.size() <= lines - 2) {
+              scr_offset = 0;
+            } else {
+              if (inputnum <= lines - 2) {
                 scr_offset = 0;
               } else {
-                if (inputnum <= lines - 2) {
-                  scr_offset = 0;
-                } else {
-                  scr_offset = inputnum - (lines - 2);
-                }
+                scr_offset = inputnum - (lines - 2);
               }
-              input.clear();
-              mode = NORMAL;
-            } else {
-              bottomline = " GO TO    | Error: Line number out of range.";  
-              input.clear();
-              mode = NORMAL;
             }
+            input.clear();
+            mode_normal();
           } else {
-            bottomline = " GO TO    | Error: Line number is not an integer.";  
+            bottomline = " GO TO    | Error: Line number out of range.";  
             input.clear();
             mode = NORMAL;
           }
         } else {
           bottomline = " GO TO    | Error: No line number inputted.";  
+          mode = NORMAL;
         }
-      } else {
+      } else if (std::isdigit(ch)) {
         input.push_back(ch);
       }
     } else if (mode == SAVE) {
       if (ch == 27) { // escape => normal mode
-        mode = NORMAL;
         input.clear();
+        mode_normal();
       } else if (ch == 263) { // backspace => delete before cursor
         if (!input.empty()) {
           input.pop_back();
@@ -473,34 +513,46 @@ int main(int argc, char* argv[]) {
           filename = input;
           input.clear();
           save();
-          mode = NORMAL;
+          mode_normal();
         } else {
-          bottomline = " SAVE AS  | Error: No file name. Please input a filename.";  
+          bottomline = " SAVE AS  | Error: No filename. Please input a filename.";  
         }
-      } else {
+      } else if (std::isprint(ch)) {
+        input.push_back(ch);
+      }
+    } else if (mode == OPEN) {
+      if (ch == 263 && !input.empty()) { // backspace => delete before cursor
+        input.pop_back();
+      } else if (ch == '\n') {
+        if (!input.empty()) {
+          open_file(input);
+          input.clear();
+        } else {
+          bottomline = " OPEN     | Error: No filename. Please input a filename.";  
+        }
+      } else if (std::isprint(ch)) {
         input.push_back(ch);
       }
     } else if (mode == NEW) {
-      if (ch == 27) { // escape => normal mode
+      if (ch == 27) { // escape => quit
         break;
       } else if (ch == 263 && !input.empty()) { // backspace => delete before cursor
         input.pop_back();
       } else if (ch == '\n') {
         if (!input.empty()) {
-          filename = input;
+          new_file(input);
           input.clear();
-          save();
-          mode = NORMAL;
+          mode_normal();
         } else {
-          bottomline = " NEW FILE | Error: No file name. Please input a filename.";  
+          bottomline = " NEW FILE | Error: No filename. Please input a filename.";  
         }
-      } else {
+      } else if (std::isprint(ch)) {
         input.push_back(ch);
       }
     } else if (mode == SHELL) {
       if (ch == 27) { // escape => normal mode
         input.clear();
-        mode = NORMAL;
+        mode_normal();
       } else if (ch == 263) { // backspace => delete before cursor
         if (!input.empty()) {
           input.pop_back();
@@ -509,8 +561,8 @@ int main(int argc, char* argv[]) {
         std::string cmdout = run_shellcmd(input);
         insertstring(cmdout);
         input.clear();
-        mode = NORMAL;
-      } else {
+        mode_normal();
+      } else if (std::isprint(ch)) {
         input.push_back(ch);
       }
     }
