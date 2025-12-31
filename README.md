@@ -18,25 +18,32 @@ This by no means is supposed to be a replacement for Vim, and if it would be, th
 - arrow keys => move cursor
 
 - [enter] => WRITE mode (as in "enter text")
+
 - v => SELECT mode (not implemented yet, concept is basically like VISUAL in vim)
 - m => MOVE mode (not implemented yet, concept is to move lines of text around, emacs style)
+
 - $ => SHELL mode (symbolic of the $ in bash, inserts shell commands output into buffer)
 
-- Q => quit
+- N => new file / NEW mode
+- O => open file / OPEN mode
 - s => save
-- S => save as/SAVE mode
+- S => save as / SAVE AS mode
 - X => save & quit
+- Q => quit
 
 - d/[del] => delete character at cursor
 - D => delete line
 
 - x => select line (not implemented yet)
 
-- T => go to top
-- B => go to bottom
+- t => go to top of buffer
+- g => GO-TO mode (goes to specified line)
+- b => go to bottom of buffer
 
-- [pgup] => scroll up one screen
-- [pgdn] => scroll down one screen
+- [home] => go to start of line
+- [end]  => go to end of line
+- [pgup] => go up one screen
+- [pgdn] => go down one screen
 
 ### WRITE mode
 - arrow keys => move cursor
@@ -47,3 +54,8 @@ This by no means is supposed to be a replacement for Vim, and if it would be, th
 - [del] => delete character at cursor
 
 - [enter] => new line
+
+- [home] => go to start of line
+- [end]  => go to end of line
+- [pgup] => go up one screen
+- [pgdn] => go down one screen

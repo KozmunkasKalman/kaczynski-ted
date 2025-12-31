@@ -377,9 +377,9 @@ int main(int argc, char* argv[]) {
       } else if (ch == 'X') { // X => save & quit
         save();
         break;
-      } else if (ch == 'O') { // o => open file
+      } else if (ch == 'O') { // O => open file
         mode_open();
-      } else if (ch == 'N') { // n => new file
+      } else if (ch == 'N') { // N => new file
         mode = NEW;
       } else if (ch == 'd' || ch == 330) { // d | delete => delete at cursor 
         delchar(0);
@@ -403,7 +403,7 @@ int main(int argc, char* argv[]) {
         }
       } else if (ch == KEY_HOME) { // home => start of line
         cur_char = 0;
-      } else if (ch == KEY_END) { // home => start of line
+      } else if (ch == KEY_END) { // end => end of line
         cur_char = buffer[cur_line].size();
       } else if (ch == 339) { // pgup => scroll up
         if (cur_line - (lines - 2) < 0) {
@@ -446,6 +446,34 @@ int main(int argc, char* argv[]) {
         delchar(0);
       } else if (ch == '\n') { // enter => new line
         newline();
+      } else if (ch == KEY_HOME) { // home => start of line
+        cur_char = 0;
+      } else if (ch == KEY_END) { // end => end of line
+        cur_char = buffer[cur_line].size();
+      } else if (ch == 339) { // pgup => scroll up
+        if (cur_line - (lines - 2) < 0) {
+          cur_line = 0;
+          scr_offset = 0;
+          if (cur_char > buffer[0].size() - 1) {
+            cur_char = buffer[0].size();
+          }
+        } else {
+          // this might cause crash in some edge cases, but im unable to find such
+          cur_line = cur_line - (lines - 3);
+          scr_offset = cur_line;
+        }
+      } else if (ch == 338) { // pgdn => scroll down
+        if (cur_line + (lines - 2) > buffer.size()) {
+          cur_line = buffer.size() - 1;
+          scr_offset = buffer.size() - (lines - 2);
+          if (cur_char > buffer[cur_line].size()) {
+            cur_char = buffer[cur_line].size();
+          }
+        } else {
+          cur_line = cur_line + (lines - 2);
+          scr_offset = cur_line - (lines - 3);
+        }
+      }
       } else if (std::isprint(ch) or std::isspace(ch)) {
         buffer[cur_line].insert(cur_char, 1, ch);
         cur_char++;
