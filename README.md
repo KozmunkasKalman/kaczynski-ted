@@ -12,6 +12,13 @@ Compared to Vim it mainly lacks several things, but not limited to: Vim motions 
 
 This by no means is supposed to be a replacement for Vim, and if it would be, then only for me. Primarily because Vim is just too damn useful for most things. And besides, this is currently way too unstable to be used for anything serious.
 
+### Installation:
+
+To install Kaczynski, run the following command:
+```bash
+git clone git@github.com:KozmunkasKalman/kaczynski-ted.git && cd kaczynski-ted && chmod +x install.sh && bash ./install.sh
+```
+
 ### Targets:
 
 - [x] Installation script
