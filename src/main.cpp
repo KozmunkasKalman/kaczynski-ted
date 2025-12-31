@@ -6,8 +6,6 @@
 #include <ncurses.h>
 #include <cstdlib>
 
-
-
 enum Mode {
   NORMAL, WRITE, SELECT, MOVE, SAVE, NEW, SHELL
 };
@@ -28,8 +26,6 @@ std::string bottomline;
 std::string setbottomline;
 std::string input;
 
-
-
 void gettermsize() {
   getmaxyx(stdscr, lines, cols);
 }
@@ -43,8 +39,9 @@ void updatescreen() {
   int text_width = cols - (linenum_digits + 4);
 
   for (int i = 0; i < lines - 2; i++) {
-    if (i + scr_offset < buffer.size()) {
-      mvprintw(i, 0, "%*i | %s", linenum_digits + 1, i + 1 + scr_offset, buffer[i + scr_offset].c_str());
+    int buf_idx = i + scr_offset;
+    if (buf_idx < buffer.size()) {
+      mvprintw(i, 0, "%*d | %s", linenum_digits + 1, buf_idx + 1, buffer[buf_idx].c_str());
     } else {
       mvprintw(i, 0, "%*s |", linenum_digits + 1, " ");
     }
@@ -53,8 +50,8 @@ void updatescreen() {
   mvhline(lines - 2, 0, '-', cols);
 
   if (mode == NORMAL) {
-    // bottomline = "NORMAL   | " + std::to_string(cur_line + 1) + ":" + std::to_string(cur_char + 1) + ", " + std::to_string(scr_offset) + ", " + std::to_string(buffer[cur_line].size() + 1) + " " + std::to_string(buffer.size()) + " | " + filename;
-    bottomline = " NORMAL   | " + filename;
+    // bottomline = "NORMAL    | " + std::to_string(cur_line + 1) + ":" + std::to_string(cur_char + 1) + ", " + std::to_string(scr_offset) + ", " + std::to_string(buffer[cur_line].size() + 1) + " " + std::to_string(buffer.size()) + " | " + filename;
+    bottomline = " NORMAL    | " + filename;
   } else if ( mode == WRITE ) {
     bottomline = " WRITE    | " + filename;
   } else if ( mode == SELECT) {
@@ -75,18 +72,21 @@ void updatescreen() {
 
   mvprintw(lines - 1, 0, "%s", bottomline.c_str());
 
-  move(cur_line - scr_offset, linenum_digits + 4 + cur_char);
+  int render_y = cur_line - scr_offset;
+  int render_x = linenum_digits + 4 + cur_char;
+
+  if (render_x >= cols) render_x = cols - 1;
+
+  move(render_y, render_x);
 
   refresh();
 }
 
-
-
 void move_up() {
   if (cur_line > 0) {
     cur_line--;
-    if (scr_offset > 0) {
-      scr_offset--;
+    if (cur_line < scr_offset) {
+      scr_offset = cur_line;
     }
   }
   if (cur_char > buffer[cur_line].size()) {
@@ -96,8 +96,8 @@ void move_up() {
 void move_down() {
   if (cur_line < buffer.size() - 1) {
     cur_line++;
-    if (cur_line - scr_offset >= lines - 2) {
-      scr_offset++;
+    if (cur_line >= scr_offset + (lines - 2)) {
+      scr_offset = cur_line - (lines - 3);
     }
   }
   if (cur_char > buffer[cur_line].size()) {
@@ -120,8 +120,6 @@ void move_right() {
     cur_char = 0;
   }
 }
-
-
 
 void delchar(int del_offset) {
   if (del_offset != 0) {
@@ -160,13 +158,11 @@ void delline() {
   }
 
   if (cur_line >= buffer.size()) {
-    move_up();
+    cur_line = buffer.size() - 1;
   }
 
   cur_char = 0;
 }
-
-
 
 void newline() {
   std::string rest = buffer[cur_line].substr(cur_char);
@@ -176,8 +172,6 @@ void newline() {
   cur_char = 0;
 }
 
-
-
 void save() {
   std::ofstream out(filename);
   for (auto& line : buffer) {
@@ -186,12 +180,10 @@ void save() {
   setbottomline = " SAVED    | " + filename;
 }
 
-
-
 std::string run_shellcmd(std::string cmd) {
   std::string output;
-
-  FILE* pipe = popen(cmd.c_str(), "r");
+  std::string full_cmd = cmd + " 2>&1";
+  FILE* pipe = popen(full_cmd.c_str(), "r");
 
   if (!pipe) {
     output = "[error]";
@@ -212,8 +204,6 @@ std::string run_shellcmd(std::string cmd) {
 
   return output;
 }
-
-
 
 void insertstring(std::string content) { // renamed parameter
   if (content.empty()) { return; }
@@ -240,17 +230,13 @@ void insertstring(std::string content) { // renamed parameter
   cur_char = buffer[cur_line + str_vect.size() - 1].size() - tail.size();
 }
 
-
-
-
-
 int main(int argc, char* argv[]){
   if (argc > 2) {
     std::cerr << "Error: Incorrect usage: Too many arguments given\nCorrect usage:\n  kcz [<input>]" << std::endl;
     exit(1);
   }
 
-  if (argv[1]) {
+  if (argc == 2 && argv[1]) {
     filename = argv[1];
     std::ifstream in(filename);
     std::string line;
@@ -260,7 +246,7 @@ int main(int argc, char* argv[]){
   } else {
     filename = "";
     mode = NEW;
-    setbottomline = " NEW FILE | ...";  
+    setbottomline = " NEW FILE | ...";   
   }
 
   if (buffer.empty()) {
@@ -280,7 +266,7 @@ int main(int argc, char* argv[]){
 
     int ch = getch();
 
-    if (ch) {
+    if (ch != ERR && mode != SAVE && mode != NEW && mode != SHELL) {
       setbottomline = "";
     }
 
@@ -305,28 +291,30 @@ int main(int argc, char* argv[]){
       } else if (ch == 'Q') { // Q => quit
         break;
       } else if (ch == 's') { // s => save
-        save();
+        if (!filename.empty()) save(); else mode = SAVE;
       } else if (ch == 'S') { // S => save as
         mode = SAVE;
       } else if (ch == 'X') { // X => save & quit
-        save();
+        if (!filename.empty()) save();
         break;
-      } else if (ch == 'd' || ch == 330) { // d | delete => delete at cursor 
+      } else if (ch == 'd' || ch == KEY_DC || ch == 330) { // d | delete => delete at cursor 
         delchar(0);
-      } else if (ch == 263) { // backspace => in normal mode moves cursor left
+      } else if (ch == KEY_BACKSPACE || ch == 127 || ch == '\b' || ch == 263) { // backspace => in normal mode moves cursor left
         move_left();
       } else if (ch == 'D') { // D => delete line
         delline();
       } else if (ch == 'x') { // x => select line
         
-
       } else if (ch == 'T') { // T => top line
         cur_line = 0;
+        scr_offset = 0;
         if (cur_char > buffer[0].size() - 1) {
           cur_char = buffer[0].size();
         }
       } else if (ch == 'B') { // B => bottom line
         cur_line = buffer.size() - 1;
+        if (cur_line >= lines - 2) scr_offset = cur_line - (lines - 3);
+        else scr_offset = 0;
         if (cur_char > buffer[cur_line].size()) {
           cur_char = buffer[cur_line].size();
         }
@@ -344,13 +332,13 @@ int main(int argc, char* argv[]){
         move_left();
       } else if (ch == KEY_RIGHT) {
         move_right();
-      } else if (ch == 263) { // backspace => delete before cursor
+      } else if (ch == KEY_BACKSPACE || ch == 127 || ch == '\b' || ch == 263) { // backspace => delete before cursor
         delchar(-1);
-      } else if (ch == 330) { // del => delete at cursor
+      } else if (ch == KEY_DC || ch == 330) { // del => delete at cursor
         delchar(0);
       } else if (ch == '\n') { // enter => new line
         newline();
-      } else {
+      } else if (ch >= 32 && ch <= 126) {
         buffer[cur_line].insert(cur_char, 1, ch);
         cur_char++;
       }
@@ -370,7 +358,7 @@ int main(int argc, char* argv[]){
       if (ch == 27) { // escape => normal mode
         input.clear();
         mode = NORMAL;
-      } else if (ch == 263) { // backspace => delete before cursor
+      } else if (ch == KEY_BACKSPACE || ch == 127 || ch == '\b' || ch == 263) { // backspace => delete before cursor
         if (!input.empty()) {
           input.pop_back();
         }
@@ -379,14 +367,14 @@ int main(int argc, char* argv[]){
         insertstring(cmdout);
         input.clear();
         mode = NORMAL;
-      } else {
+      } else if (ch >= 32 && ch <= 126) {
         input.push_back(ch);
       }
     } else if (mode == SAVE) {
       if (ch == 27) { // escape => normal mode
         mode = NORMAL;
         input.clear();
-      } else if (ch == 263) { // backspace => delete before cursor
+      } else if (ch == KEY_BACKSPACE || ch == 127 || ch == '\b' || ch == 263) { // backspace => delete before cursor
         if (!input.empty()) {
           input.pop_back();
         }
@@ -398,13 +386,12 @@ int main(int argc, char* argv[]){
           mode = NORMAL;
         } else {
           setbottomline = " SAVE AS  | Error: No file name. Please input a filename.";  
-
         }
-      } else {
+      } else if (ch >= 32 && ch <= 126) {
         input.push_back(ch);
       }
     } else if (mode == NEW) {
-      if (ch == 263) { // backspace => delete before cursor
+      if (ch == KEY_BACKSPACE || ch == 127 || ch == '\b' || ch == 263) { // backspace => delete before cursor
         if (!input.empty()) {
           input.pop_back();
         }
@@ -417,7 +404,7 @@ int main(int argc, char* argv[]){
         } else {
           setbottomline = " NEW FILE | Error: No file name. Please input a filename.";  
         }
-      } else {
+      } else if (ch >= 32 && ch <= 126) {
         input.push_back(ch);
       }
     }
