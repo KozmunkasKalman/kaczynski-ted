@@ -441,7 +441,7 @@ int main(int argc, char* argv[]) {
             cur_char = buffer[cur_line].size();
           }
         } else {
-          cur_line = cur_line + (lines - 2);
+          cur_line = cur_line + (lines - 3);
           scr_offset = cur_line - (lines - 3);
         }
       }
