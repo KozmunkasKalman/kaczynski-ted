@@ -4,6 +4,7 @@
 #include <vector>
 #include <string>
 #include <cctype>
+#include <cstdlib>
 #include <ncurses.h>
 
 
@@ -45,8 +46,8 @@ void updatescreen() {
   int text_width = cols - (linenum_digits + 4) - 1;
 
   for (int i = 0; i < lines - 2; i++) {
-    if (i < buffer.size()) {
-      mvprintw(i, 0, "%*i | %s", linenum_digits + 1, i + 1 + scr_offset, buffer[i + scr_offset].c_str());
+    if (i + scr_offset < buffer.size()) {
+      mvprintw(i, 0, "%*i | %s", linenum_digits + 1, i + scr_offset + 1, buffer[i + scr_offset].c_str());
     } else {
       mvprintw(i, 0, "%*s |", linenum_digits + 1, " ");
     }
@@ -103,7 +104,8 @@ void updatescreen() {
 std::string run_shellcmd(std::string cmd) {
   std::string output;
 
-  FILE* pipe = popen(cmd.c_str(), "r");
+  std::string full_cmd = cmd + " 2>&1";
+  FILE* pipe = popen(full_cmd.c_str(), "r");
 
   if (!pipe) {
     output = "[error]";
@@ -128,16 +130,24 @@ std::string run_shellcmd(std::string cmd) {
 
 
 void save() {
-  std::ofstream out(filename);
-  for (auto& line : buffer) {
-    out << line << "\n";
+  if (!filename.empty()) {
+    std::ofstream out(filename);
+    for (auto& line : buffer) {
+      out << line << "\n";
+    }
+    bottomline = " SAVED    | " + filename;
+  } else {
+    mode = SAVE;
   }
-  bottomline = " SAVED    | " + filename;
 }
 void save_nomsg() {
-  std::ofstream out(filename);
-  for (auto& line : buffer) {
-    out << line << "\n";
+  if (!filename.empty()) {
+    std::ofstream out(filename);
+    for (auto& line : buffer) {
+      out << line << "\n";
+    }
+  } else {
+    mode = SAVE;
   }
 }
 
@@ -174,8 +184,8 @@ void open_file(std::string file) {
 void move_up() {
   if (cur_line > 0) {
     cur_line--;
-    if (scr_offset > 0) {
-      scr_offset--;
+    if (cur_line < scr_offset) {
+      scr_offset = cur_line;
     }
   }
   if (cur_char > buffer[cur_line].size()) {
@@ -185,8 +195,9 @@ void move_up() {
 void move_down() {
   if (cur_line < buffer.size() - 1) {
     cur_line++;
-    if (cur_line - scr_offset >= lines - 2) {
-      scr_offset++;
+    if (cur_line >= scr_offset + (lines - 2)) {
+      // scr_offset++;
+      scr_offset = cur_line - (lines - 3);
     }
   }
   if (cur_char > buffer[cur_line].size()) {
@@ -261,7 +272,7 @@ void delline() {
   }
 
   if (cur_line >= buffer.size()) {
-    move_up();
+    cur_line = buffer.size() - 1;
   }
 
   cur_char = 0;
@@ -279,12 +290,12 @@ void newline() {
 
 
 
-void insertstring(std::string string) {
-  if (string.empty()) { return; }
+void insertstring(std::string cont_str) {
+  if (cont_str.empty()) { return; }
 
   std::vector<std::string> str_vect;
   std::string line;
-  std::istringstream istrings(string);
+  std::istringstream istrings(cont_str);
   while (std::getline(istrings, line)) {
     str_vect.push_back(line);
   }
@@ -312,7 +323,7 @@ int main(int argc, char* argv[]) {
     exit(1);
   }
 
-  if (argv[1]) {
+  if (argc == 2 && argv[1]) {
     open_file(argv[1]);
   } else {
     filename = "";
@@ -381,9 +392,9 @@ int main(int argc, char* argv[]) {
         mode_open();
       } else if (ch == 'N') { // N => new file
         mode = NEW;
-      } else if (ch == 'd' || ch == 330) { // d | delete => delete at cursor 
+      } else if (ch == 'd' || ch == KEY_DC || ch == 330) { // d | delete => delete at cursor 
         delchar(0);
-      } else if (ch == 263) { // backspace => in normal mode moves cursor left
+      } else if (ch == KEY_BACKSPACE || ch == 127 || ch == 263 || ch == '\b') { // backspace => in normal mode moves cursor left
         move_left();
       } else if (ch == 'D') { // D => delete line
         delline();
@@ -397,7 +408,10 @@ int main(int argc, char* argv[]) {
         }
       } else if (ch == 'b') { // b => bottom of buffer
         cur_line = buffer.size() - 1;
-        scr_offset = buffer.size() - (lines - 2);
+        if (cur_line >= lines - 2) {
+          scr_offset = cur_line - (lines - 3);
+        } else scr_offset = 0;
+        // scr_offset = buffer.size() - (lines - 2);
         if (cur_char > buffer[cur_line].size()) {
           cur_char = buffer[cur_line].size();
         }
@@ -420,7 +434,9 @@ int main(int argc, char* argv[]) {
       } else if (ch == 338) { // pgdn => scroll down
         if (cur_line + (lines - 2) > buffer.size()) {
           cur_line = buffer.size() - 1;
-          scr_offset = buffer.size() - (lines - 2);
+          if (cur_line >= lines - 2) {
+            scr_offset = cur_line - (lines - 3);
+          } else scr_offset = 0;
           if (cur_char > buffer[cur_line].size()) {
             cur_char = buffer[cur_line].size();
           }
@@ -440,9 +456,9 @@ int main(int argc, char* argv[]) {
         move_left();
       } else if (ch == KEY_RIGHT) {
         move_right();
-      } else if (ch == 263) { // backspace => delete before cursor
+      } else if (ch == KEY_BACKSPACE || ch == 127 || ch == 263 || ch == '\b') { // backspace => delete before cursor
         delchar(-1);
-      } else if (ch == 330) { // del => delete at cursor
+      } else if (ch == KEY_DC || ch == 330) { // del => delete at cursor 
         delchar(0);
       } else if (ch == '\n') { // enter => new line
         newline();
@@ -473,8 +489,7 @@ int main(int argc, char* argv[]) {
           cur_line = cur_line + (lines - 2);
           scr_offset = cur_line - (lines - 3);
         }
-      }
-      } else if (std::isprint(ch) or std::isspace(ch)) {
+      } else if (std::isprint(ch) || std::isspace(ch)) {
         buffer[cur_line].insert(cur_char, 1, ch);
         cur_char++;
       }
@@ -494,7 +509,7 @@ int main(int argc, char* argv[]) {
       if (ch == 27) { // escape => normal mode
         input.clear();
         mode_normal();
-      } else if (ch == 263) { // backspace => delete before cursor
+      } else if (ch == KEY_BACKSPACE || ch == 127 || ch == 263 || ch == '\b') { // backspace => delete before cursor
         if (!input.empty()) {
           input.pop_back();
         }
@@ -532,7 +547,7 @@ int main(int argc, char* argv[]) {
       if (ch == 27) { // escape => normal mode
         input.clear();
         mode_normal();
-      } else if (ch == 263) { // backspace => delete before cursor
+      } else if (ch == KEY_BACKSPACE || ch == 127 || ch == 263 || ch == '\b') { // backspace => delete before cursor
         if (!input.empty()) {
           input.pop_back();
         }
@@ -549,7 +564,7 @@ int main(int argc, char* argv[]) {
         input.push_back(ch);
       }
     } else if (mode == OPEN) {
-      if (ch == 263 && !input.empty()) { // backspace => delete before cursor
+      if ((ch == KEY_BACKSPACE || ch == 127 || ch == 263 || ch == '\b') && !input.empty()) { // backspace => delete before cursor
         input.pop_back();
       } else if (ch == '\n') {
         if (!input.empty()) {
@@ -564,7 +579,7 @@ int main(int argc, char* argv[]) {
     } else if (mode == NEW) {
       if (ch == 27) { // escape => quit
         break;
-      } else if (ch == 263 && !input.empty()) { // backspace => delete before cursor
+      } else if ((ch == KEY_BACKSPACE || ch == 127 || ch == 263 || ch == '\b') && !input.empty()) { // backspace => delete before cursor
         input.pop_back();
       } else if (ch == '\n') {
         if (!input.empty()) {
@@ -581,7 +596,7 @@ int main(int argc, char* argv[]) {
       if (ch == 27) { // escape => normal mode
         input.clear();
         mode_normal();
-      } else if (ch == 263) { // backspace => delete before cursor
+      } else if ((ch == KEY_BACKSPACE || ch == 127 || ch == 263 || ch == '\b') && !input.empty()) { // backspace => delete before cursor
         if (!input.empty()) {
           input.pop_back();
         }
