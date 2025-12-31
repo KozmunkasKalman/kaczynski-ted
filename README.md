@@ -16,7 +16,7 @@ This by no means is supposed to be a replacement for Vim, and if it would be, th
 
 To install Kaczynski, run the following command:
 ```bash
-git clone git@github.com:KozmunkasKalman/kaczynski-ted.git && cd kaczynski-ted && chmod +x install.sh && bash ./install.sh
+git clone https://github.com/KozmunkasKalman/kaczynski-ted.git && cd kaczynski-ted && chmod +x install.sh && bash ./install.sh
 ```
 
 ### Targets:
