@@ -4,6 +4,7 @@
 #include <vector>
 #include <string>
 #include <ncurses.h>
+#include <cstdlib>
 
 
 
@@ -42,7 +43,7 @@ void updatescreen() {
   int text_width = cols - (linenum_digits + 4);
 
   for (int i = 0; i < lines - 2; i++) {
-    if (i < buffer.size()) {
+    if (i + scr_offset < buffer.size()) {
       mvprintw(i, 0, "%*i | %s", linenum_digits + 1, i + 1 + scr_offset, buffer[i + scr_offset].c_str());
     } else {
       mvprintw(i, 0, "%*s |", linenum_digits + 1, " ");
@@ -214,12 +215,12 @@ std::string run_shellcmd(std::string cmd) {
 
 
 
-void insertstring(std::string string) {
-  if (string.empty()) { return; }
+void insertstring(std::string content) { // renamed parameter
+  if (content.empty()) { return; }
 
   std::vector<std::string> str_vect;
   std::string line;
-  std::istringstream istrings(string);
+  std::istringstream istrings(content); //updated usage
   while (std::getline(istrings, line)) {
     str_vect.push_back(line);
   }
