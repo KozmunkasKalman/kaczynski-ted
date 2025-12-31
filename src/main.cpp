@@ -223,18 +223,6 @@ void move_right() {
 
 
 
-void mode_normal() {
-  mode = NORMAL;
-  bottomline = " NORMAL   | " + filename;
-}
-void mode_open() {
-  mode = OPEN;
-  buffer.clear();
-  buffer.push_back(" " + run_shellcmd("find . -type f -maxdepth 1 -printf '%f '"));
-}
-
-
-
 void delchar(int del_offset) {
   if (del_offset != 0) {
     if (cur_char > 0) {
@@ -313,6 +301,18 @@ void insertstring(std::string cont_str) {
 
   cur_line += str_vect.size() - 1;
   cur_char = buffer[cur_line + str_vect.size() - 1].size() - tail.size();
+}
+
+
+
+void mode_normal() {
+  mode = NORMAL;
+  bottomline = " NORMAL   | " + filename;
+}
+void mode_open() {
+  mode = OPEN;
+  buffer.clear();
+  buffer.push_back("> " + run_shellcmd("find . -maxdepth 1 -type f -printf '%f   '"));
 }
 
 
@@ -502,6 +502,33 @@ int main(int argc, char* argv[]) {
     } else if (mode == MOVE) {
       if (ch == 27) { // escape => normal mode
         mode_normal();
+      } else if (ch == KEY_UP) {
+        if (cur_line > 0) {
+          std::swap(buffer[cur_line], buffer[cur_line - 1]);
+          move_up();
+        }
+      } else if (ch == KEY_DOWN) {
+        if (cur_line < buffer.size() - 1) {
+          std::swap(buffer[cur_line], buffer[cur_line + 1]);
+          move_down();
+        }
+      } else if (ch == 't') { // t => top of buffer
+        std::swap(buffer[cur_line], buffer[0]);
+        cur_line = 0;
+        scr_offset = 0;
+        if (cur_char > buffer[0].size() - 1) {
+          cur_char = buffer[0].size();
+        }
+      } else if (ch == 'b') {
+        std::swap(buffer[cur_line], buffer[buffer.size() - 1]);
+        cur_line = buffer.size() - 1;
+        if (cur_line >= lines - 2) {
+          scr_offset = cur_line - (lines - 3);
+        } else scr_offset = 0;
+        // scr_offset = buffer.size() - (lines - 2);
+        if (cur_char > buffer[cur_line].size()) {
+          cur_char = buffer[cur_line].size();
+        }
       } else {
         bottomline = " MOVE     | Error: MOVE mode not implemented yet.";  
       }
