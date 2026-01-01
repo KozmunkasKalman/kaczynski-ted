@@ -14,7 +14,7 @@ $(TARGET): $(SRC)
 	$(CXX) $(CXXFLAGS) -o $(TARGET) $(SRC)
 
 clean:
-	rm -f $(TARGET
+	rm -f $(TARGET)
 
 #completely optional btw, but I made a some macros
 
