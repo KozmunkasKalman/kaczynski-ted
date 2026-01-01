@@ -34,6 +34,10 @@ std::vector<std::string> buffer;
 std::string bottomline;
 std::string input;
 
+int linenum_digits = std::to_string(buffer.size()).length();
+int gutter_width = linenum_digits + 4;
+int text_width = cols - gutter_width - 1;
+
 int selecting = 0; // 0 = false, 1 = single character, 2 = whole line
 int sel_anchor_line = 0;
 int sel_anchor_char = 0;
@@ -41,8 +45,6 @@ int sel_start_line = 0;
 int sel_start_char = 0;
 int sel_end_line = 0;
 int sel_end_char = 0;
-
-int wraps = 0;
 
 bool ins_over = false;
 bool scr_lock = false;
@@ -75,6 +77,31 @@ std::string run_shellcmd(std::string cmd, bool do_msg) {
   pclose(pipe);
 
   return output;
+}
+
+void insertstring(std::string cont_str) {
+  if (cont_str.empty()) { return; }
+
+  std::vector<std::string> str_vect;
+  std::string line;
+  std::istringstream istrings(cont_str);
+  while (std::getline(istrings, line)) {
+    str_vect.push_back(line);
+  }
+
+  std::string tail = buffer[cur_line].substr(cur_char);
+  buffer[cur_line].erase(cur_char);
+
+  buffer[cur_line] += str_vect[0];
+
+  for (size_t i = 1; i < str_vect.size(); i++) {
+    buffer.insert(buffer.begin() + cur_line + i, str_vect[i]);
+  }
+
+  buffer[cur_line + str_vect.size() - 1] += tail;
+
+  cur_line += str_vect.size() - 1;
+  cur_char = buffer[cur_line + str_vect.size() - 1].size() - tail.size();
 }
 
 void set_mode_normal() {
@@ -153,8 +180,20 @@ void open_file(std::string file) {
   }
 }
 
+int get_line_wraps(int line) {
+    return std::max(1, (int(buffer[line].size()) + text_width - 1) / text_width);
+}
+
 void move_up() {
-  if (cur_line > 0) {
+  if (cur_line > 0 && buffer[cur_line].size() > text_width && cur_char - text_width < buffer[cur_line].size()){
+    cur_char -= text_width;
+  } else if (cur_line > 0 && buffer[cur_line - 1].size() > text_width && cur_char % text_width <= buffer[cur_line - 1].size()) {
+    cur_line -= 1;
+    for (int i = 0; i <= buffer[cur_line].size(); i += text_width) {
+      cur_char += text_width;
+    }
+    cur_char -= text_width;
+  } else if (cur_line > 0) {
     cur_line--;
     if (cur_line < scr_offset) {
       scr_offset = cur_line;
@@ -165,8 +204,15 @@ void move_up() {
   }
 }
 void move_down() {
-  if (cur_line < buffer.size() - 1) {
-    cur_line++;
+  if (cur_line < buffer.size() - 1 && buffer[cur_line].size() > text_width && cur_char + text_width < buffer[cur_line].size()) {
+    cur_char += text_width;
+  } else if (cur_line < buffer.size() - 1) {
+    if (cur_char + text_width - cur_char % text_width + 1 <= buffer[cur_line].size()) {
+      cur_char += text_width;
+    } else {
+      cur_line++;
+      cur_char = cur_char % text_width;
+    }
     if (cur_line >= scr_offset + (lines - 2)) {
       scr_offset = cur_line - (lines - 3);
     }
@@ -182,6 +228,9 @@ void move_left() {
     move_up();
     cur_char = buffer[cur_line].size();
   }
+  if (cur_char > buffer[cur_line].size()) {
+    cur_char = buffer[cur_line].size();
+  }
 }
 void move_right() {
   if (cur_char < buffer[cur_line].size()) {
@@ -190,6 +239,9 @@ void move_right() {
     move_down();
     cur_char = 0;
   }
+  if (cur_char > buffer[cur_line].size()) {
+    cur_char = buffer[cur_line].size();
+  }
 }
 void page_up() {
   if (cur_line - (lines - 2) < 0) { cur_line = 0; scr_offset = 0; }
@@ -197,11 +249,11 @@ void page_up() {
   if (cur_char > buffer[cur_line].size()) cur_char = buffer[cur_line].size(); 
 }
 void page_down() {
-  if (cur_line + (lines - 2) > buffer.size()) { 
+  if (cur_line + (lines - 2) >= buffer.size()) { 
     cur_line = buffer.size() - 1; 
     scr_offset = (cur_line >= lines - 2) ? cur_line - (lines - 3) : 0;
   } else { 
-    cur_line += (lines - 2) - wraps; scr_offset = cur_line - (lines - 3); 
+    cur_line += (lines - 2) + get_line_wraps(cur_line) - 1 - 1; scr_offset = cur_line - (lines - 3); 
   }
   if (cur_char > buffer[cur_line].size()) cur_char = buffer[cur_line].size();
 }
@@ -294,31 +346,6 @@ void newline() {
   cur_char = 0;
 }
 
-void insertstring(std::string cont_str) {
-  if (cont_str.empty()) { return; }
-
-  std::vector<std::string> str_vect;
-  std::string line;
-  std::istringstream istrings(cont_str);
-  while (std::getline(istrings, line)) {
-    str_vect.push_back(line);
-  }
-
-  std::string tail = buffer[cur_line].substr(cur_char);
-  buffer[cur_line].erase(cur_char);
-
-  buffer[cur_line] += str_vect[0];
-
-  for (size_t i = 1; i < str_vect.size(); i++) {
-    buffer.insert(buffer.begin() + cur_line + i, str_vect[i]);
-  }
-
-  buffer[cur_line + str_vect.size() - 1] += tail;
-
-  cur_line += str_vect.size() - 1;
-  cur_char = buffer[cur_line + str_vect.size() - 1].size() - tail.size();
-}
-
 
 
 void update_win_size() {
@@ -330,9 +357,9 @@ void update_screen() {
 
   clear();
 
-  int linenum_digits = std::to_string(buffer.size()).length();
-  int gutter_width = linenum_digits + 4;
-  int text_width = cols - gutter_width - 1;
+  linenum_digits = std::to_string(buffer.size()).length();
+  gutter_width = linenum_digits + 4;
+  text_width = cols - gutter_width - 1;
 
   int rend_line = 0;
   int rend_char = 0;
@@ -358,11 +385,10 @@ void update_screen() {
         rend_line++;
       }
     } else {
+      rend_line++;
       mvprintw(i, 0, "%*s |", linenum_digits + 1, " ");
     }
   }
-
-  move(curs_row, curs_col);
 
   mvhline(lines - 2, 0, '-', cols);
 
@@ -372,6 +398,7 @@ void update_screen() {
       bottomline = "          | [O]pen file   [N]ew file   [Q]uit ";
     } else if (mode == NORMAL) {
       bottomline = " NORMAL   | " + filename;
+      // bottomline = " NORMAL   | " + filename + " | " + std::to_string(cur_line) + ":" + std::to_string(cur_char);
     } else if (mode == WRITE) {
       bottomline = " WRITE    | " + filename;
     } else if (mode == SELECT) {
@@ -418,10 +445,10 @@ void update_screen() {
     curs_set(0);
   }
 
-  int curs_row = 0;
+  curs_row = 0;
 
   for (int i = scr_offset; i < cur_line; i++) {
-    wraps = std::max(1, int(buffer[i].size() + text_width - 1) / text_width);
+    int wraps = get_line_wraps(i);
     curs_row += wraps;
   }
 
@@ -468,12 +495,6 @@ int main(int argc, char* argv[]) {
       bottomline = "";
     }
 
-    /* I refuse otherwise,
-    *  may your if else will never see the light of day.
-    *  cleaned up main loop using switch.
-    *  actually much cleaner lol, and we are now down 
-    *  500 lines
-    */
     switch (mode) {
       case NONE:
         if (ch == 'O' || ch == 'o') set_mode_open(); 
