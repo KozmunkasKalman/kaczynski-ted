@@ -12,7 +12,6 @@
 enum Mode {
   NONE, NORMAL, WRITE, SELECT, MOVE, GOTO, SAVE, OPEN, NEW, SHELL
 };
-
 Mode mode = NONE;
 
 enum CursorType {
@@ -43,7 +42,7 @@ int sel_start_char = 0;
 int sel_end_line = 0;
 int sel_end_char = 0;
 
-int wraps = 0; // total line wraps
+int wraps = 0;
 
 bool ins_over = false;
 bool scr_lock = false;
@@ -90,6 +89,8 @@ void set_mode_write() {
 }
 void set_mode_select(bool line) {
   mode = SELECT;
+  sel_anchor_line = cur_line;
+  sel_anchor_char = cur_char;
   if (line) {
     selecting = 2;
     sel_start_line = cur_line;
@@ -98,8 +99,6 @@ void set_mode_select(bool line) {
     sel_end_char = buffer[cur_line].size();
   } else {
     selecting = 1;
-    sel_anchor_line = cur_line;
-    sel_anchor_char = cur_char;
     sel_start_line = cur_line;
     sel_start_char = cur_char;
     sel_end_line = cur_line;
@@ -152,25 +151,6 @@ void open_file(std::string file) {
   } else {
     bottomline = " OPEN     | Error: File \"" + file + "\" doesn't exist.";
   }
-}
-
-void normalize_selection() {
-  if (sel_start_line > sel_end_line || (sel_start_line == sel_end_line && sel_start_char > sel_end_char)) {
-    std::swap(sel_start_line, sel_end_line);
-    std::swap(sel_start_char, sel_end_char);
-  }
-}
-
-bool is_selected(int row, int col) {
-  if (!selecting) return false;
-
-  normalize_selection();
-
-  if (row < sel_start_line || row > sel_end_line) return false;
-  if (row == sel_start_line && col < sel_start_char) return false;
-  if (row == sel_end_line && col > sel_end_char) return false;
-
-  return true;
 }
 
 void move_up() {
@@ -226,6 +206,24 @@ void page_down() {
   if (cur_char > buffer[cur_line].size()) cur_char = buffer[cur_line].size();
 }
 
+void normalize_selection() {
+  if (sel_start_line > sel_end_line || (sel_start_line == sel_end_line && sel_start_char > sel_end_char)) {
+    std::swap(sel_start_line, sel_end_line);
+    std::swap(sel_start_char, sel_end_char);
+  }
+}
+bool is_selected(int row, int col) {
+  if (!selecting) return false;
+
+  normalize_selection();
+
+  if (row < sel_start_line || row > sel_end_line) return false;
+  if (row == sel_start_line && col < sel_start_char) return false;
+  if (row == sel_end_line && col > sel_end_char) return false;
+
+  return true;
+}
+
 void delchar(int del_offset) {
   // TODO: merge del_offset if - else statement into single scope using del_offset variable properly
   if (del_offset != 0) {
@@ -250,7 +248,6 @@ void delchar(int del_offset) {
     }
   }
 }
-
 void delline() {
   if (buffer.empty()) return;
 
@@ -269,7 +266,6 @@ void delline() {
 
   cur_char = 0;
 }
-
 void delselect() {
     if (!selecting) return;
 
@@ -287,10 +283,7 @@ void delselect() {
     cur_line = sel_start_line;
     cur_char = sel_start_char;
 
-    sel_start_line = 0;
-    sel_start_char = 0;
-    sel_end_line = 0;
-    sel_end_char = 0;
+    selecting = 0;
 }
 
 void newline() {
@@ -382,10 +375,10 @@ void update_screen() {
     } else if (mode == WRITE) {
       bottomline = " WRITE    | " + filename;
     } else if (mode == SELECT) {
-      if (selecting == 2) {
-        bottomline = " SELECT   | L...";
+      if (sel_start_line && sel_end_line && sel_start_char && sel_end_char) {
+        bottomline = " SELECT   | " + std::to_string(sel_start_line) + ":" + std::to_string(sel_start_char) + " - " + std::to_string(sel_end_line) + ":" + std::to_string(sel_end_char);
       } else {
-        bottomline = " SELECT   | ...";
+        bottomline = " SELECT   | ";
       }
     } else if (mode == MOVE) {
       bottomline = " MOVE     | " + filename;
@@ -549,7 +542,8 @@ int main(int argc, char* argv[]) {
 
       case SELECT:
         if (ch == 27) { set_mode_normal(); selecting = 0; }
-        else if (ch == 'd' || ch == 'D' || ch == KEY_DC || ch == KEY_BACKSPACE || ch == 330 || ch == 127 || ch == 263 || ch == '\b') {
+        else if (ch == 'x') set_mode_select(true);
+        else if (ch == 'D' || ch == 'd' || ch == KEY_BACKSPACE || ch == KEY_DC || ch == 127 || ch == 263 || ch == 330 || ch == '\b') {
           delselect();
           set_mode_normal();
         }
@@ -559,6 +553,7 @@ int main(int argc, char* argv[]) {
         else if (ch == KEY_RIGHT) move_right();
         else if (ch == KEY_HOME) cur_char = 0;
         else if (ch == KEY_END) cur_char = buffer[cur_line].size();
+
         if (selecting == 2) {
           if (cur_line < sel_start_line) {
             sel_start_line = cur_line;
@@ -567,9 +562,11 @@ int main(int argc, char* argv[]) {
             sel_end_line = cur_line;
             sel_end_char = buffer[cur_char].size();        
           }
-        } else if (selecting == 1) {
+        }
+        else if (selecting == 1) {
           sel_start_line = sel_anchor_line;
           sel_start_char = sel_anchor_char;
+
           sel_end_line = cur_line;
           sel_end_char = cur_char;
         }
