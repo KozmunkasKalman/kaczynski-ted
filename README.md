@@ -27,13 +27,13 @@ git clone https://github.com/KozmunkasKalman/kaczynski-ted.git && cd kaczynski-t
 - [x] Delete text in files
 - [x] Save files
 - [x] Open files
-- [ ] Visual selection of text
-- [ ] Cut, copy, paste support for system clipboard
+- [x] Visual selection of text
 - [ ] Move selected text around in move mode
+- [ ] Cut, copy, paste support for system clipboard
 - [x] Going to specified line
 - [x] Home & End keys functionality
 - [x] Page up & Page down keys functionality
-- [ ] Insert key functionality (overwriting text)
+- [x] Insert key functionality (overwriting text)
 - [ ] Scroll lock key functionality (locking screen in place)
 - [ ] Tabs (support for multiple simultaneously open buffers)
 - [ ] Unicode support
