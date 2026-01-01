@@ -7,8 +7,6 @@
 #include <cstdlib>
 #include <ncurses.h>
 
-
-
 enum Mode {
   NONE, NORMAL, WRITE, SELECT, MOVE, GOTO, SAVE, OPEN, NEW, SHELL
 };
@@ -30,8 +28,6 @@ std::string input;
 
 bool ins_over = false;
 bool scr_lock = false;
-
-
 
 void gettermsize() {
   getmaxyx(stdscr, lines, cols);
@@ -99,8 +95,6 @@ void updatescreen() {
   refresh();
 }
 
-
-
 std::string run_shellcmd(std::string cmd) {
   std::string output;
 
@@ -126,8 +120,6 @@ std::string run_shellcmd(std::string cmd) {
 
   return output;
 }
-
-
 
 void save() {
   if (!filename.empty()) {
@@ -179,8 +171,6 @@ void open_file(std::string file) {
   }
 }
 
-
-
 void move_up() {
   if (cur_line > 0) {
     cur_line--;
@@ -220,8 +210,6 @@ void move_right() {
     cur_char = 0;
   }
 }
-
-
 
 void delchar(int del_offset) {
   if (del_offset != 0) {
@@ -266,8 +254,6 @@ void delline() {
   cur_char = 0;
 }
 
-
-
 void newline() {
   std::string rest = buffer[cur_line].substr(cur_char);
   buffer[cur_line] = buffer[cur_line].substr(0, cur_char);
@@ -275,8 +261,6 @@ void newline() {
   move_down();
   cur_char = 0;
 }
-
-
 
 void insertstring(std::string cont_str) {
   if (cont_str.empty()) { return; }
@@ -303,8 +287,6 @@ void insertstring(std::string cont_str) {
   cur_char = buffer[cur_line + str_vect.size() - 1].size() - tail.size();
 }
 
-
-
 void mode_normal() {
   mode = NORMAL;
   bottomline = " NORMAL   | " + filename;
@@ -314,8 +296,6 @@ void mode_open() {
   buffer.clear();
   buffer.push_back("> " + run_shellcmd("find . -maxdepth 1 -type f -printf '%f   '"));
 }
-
-
 
 int main(int argc, char* argv[]) {
   if (argc > 2) {
@@ -351,291 +331,169 @@ int main(int argc, char* argv[]) {
       bottomline = "";
     }
 
-    // switch statement didnt work, stuck with if - else if - else wall
-    if (mode == NONE) {
-      if (ch == 'O' || ch == 'o') { // O => open file
-        mode_open(); 
-      } else if (ch == 'N' || ch == 'n') { // N => new file
-        mode = NEW;
-      } else if (ch == 'Q' || ch == 'q') { // Q => quit
+    /* I refuse otherwise,
+    *  may your if else will never see the light of day.
+    *  cleaned up main loop using switch.
+    *  actually much cleaner lol, and we are now down 
+    *  500 lines
+    */
+    switch (mode) {
+      case NONE:
+        if (ch == 'O' || ch == 'o') mode_open(); 
+        else if (ch == 'N' || ch == 'n') mode = NEW;
+        else if (ch == 'Q' || ch == 'q') goto end_loop;
         break;
-      }
-    } else if (mode == NORMAL) {
-      if (ch == '\n') { // enter => write mode
-        mode = WRITE;
-      } else if (ch == 'v') { // v => select mode
-        mode = SELECT;
-      } else if (ch == 'm') { // m => move mode
-        mode = MOVE;
-      } else if (ch == 'g') { // g => go-to mode
-        mode = GOTO;
-      } else if (ch == '$') { // $ => shell mode
-        mode = SHELL;
-      } else if (ch == KEY_UP) {
-        move_up();
-      } else if (ch == KEY_DOWN) {
-        move_down();               // arrow keys => movement
-      } else if (ch == KEY_LEFT) {
-        move_left();
-      } else if (ch == KEY_RIGHT) {
-        move_right();
-      } else if (ch == 'Q') { // Q => quit
-        break;
-      } else if (ch == 's') { // s => save
-        save();
-      } else if (ch == 'S') { // S => save as
-        mode = SAVE;
-      } else if (ch == 'X') { // X => save & quit
-        save();
-        break;
-      } else if (ch == 'O') { // O => open file
-        mode_open();
-      } else if (ch == 'N') { // N => new file
-        mode = NEW;
-      } else if (ch == 'd' || ch == KEY_DC || ch == 330) { // d | delete => delete at cursor 
-        delchar(0);
-      } else if (ch == KEY_BACKSPACE || ch == 127 || ch == 263 || ch == '\b') { // backspace => in normal mode moves cursor left
-        move_left();
-      } else if (ch == 'D') { // D => delete line
-        delline();
-      } else if (ch == 'x') { // x => select line        
 
-      } else if (ch == 't') { // t => top of buffer
-        cur_line = 0;
-        scr_offset = 0;
-        if (cur_char > buffer[0].size() - 1) {
-          cur_char = buffer[0].size();
-        }
-      } else if (ch == 'b') { // b => bottom of buffer
-        cur_line = buffer.size() - 1;
-        if (cur_line >= lines - 2) {
-          scr_offset = cur_line - (lines - 3);
-        } else scr_offset = 0;
-        // scr_offset = buffer.size() - (lines - 2);
-        if (cur_char > buffer[cur_line].size()) {
-          cur_char = buffer[cur_line].size();
-        }
-      } else if (ch == KEY_HOME) { // home => start of line
-        cur_char = 0;
-      } else if (ch == KEY_END) { // end => end of line
-        cur_char = buffer[cur_line].size();
-      } else if (ch == 339) { // pgup => scroll up
-        if (cur_line - (lines - 2) < 0) {
-          cur_line = 0;
-          scr_offset = 0;
-          if (cur_char > buffer[0].size() - 1) {
-            cur_char = buffer[0].size();
-          }
-        } else {
-          // this might cause crash in some edge cases, but im unable to find such
-          cur_line = cur_line - (lines - 3);
-          scr_offset = cur_line;
-        }
-      } else if (ch == 338) { // pgdn => scroll down
-        if (cur_line + (lines - 2) > buffer.size()) {
+      case NORMAL:
+        if (ch == '\n') mode = WRITE;
+        else if (ch == 'v') mode = SELECT;
+        else if (ch == 'm') mode = MOVE;
+        else if (ch == 'g') mode = GOTO;
+        else if (ch == '$') mode = SHELL;
+        else if (ch == KEY_UP) move_up();
+        else if (ch == KEY_DOWN) move_down();
+        else if (ch == KEY_LEFT) move_left();
+        else if (ch == KEY_RIGHT) move_right();
+        else if (ch == 'Q') goto end_loop;
+        else if (ch == 's') save();
+        else if (ch == 'S') mode = SAVE;
+        else if (ch == 'X') { save(); goto end_loop; }
+        else if (ch == 'O') mode_open();
+        else if (ch == 'N') mode = NEW;
+        else if (ch == 'd' || ch == KEY_DC || ch == 330) delchar(0);
+        else if (ch == KEY_BACKSPACE || ch == 127 || ch == 263 || ch == '\b') move_left();
+        else if (ch == 'D') delline();
+        else if (ch == 'x') { /* select line */ }
+        else if (ch == 't') { 
+          cur_line = 0; scr_offset = 0; 
+          if (cur_char > buffer[0].size() - 1) cur_char = buffer[0].size();
+        } 
+        else if (ch == 'b') { 
           cur_line = buffer.size() - 1;
-          if (cur_line >= lines - 2) {
-            scr_offset = cur_line - (lines - 3);
-          } else scr_offset = 0;
-          if (cur_char > buffer[cur_line].size()) {
-            cur_char = buffer[cur_line].size();
+          scr_offset = (cur_line >= lines - 2) ? cur_line - (lines - 3) : 0;
+          if (cur_char > buffer[cur_line].size()) cur_char = buffer[cur_line].size();
+        } 
+        else if (ch == KEY_HOME) cur_char = 0;
+        else if (ch == KEY_END) cur_char = buffer[cur_line].size();
+        else if (ch == 339) { // pgup
+          if (cur_line - (lines - 2) < 0) { cur_line = 0; scr_offset = 0; }
+          else { cur_line -= (lines - 3); scr_offset = cur_line; }
+          if (cur_char > buffer[cur_line].size()) cur_char = buffer[cur_line].size();
+        } 
+        else if (ch == 338) { // pgdn
+          if (cur_line + (lines - 2) > buffer.size()) { 
+            cur_line = buffer.size() - 1; 
+            scr_offset = (cur_line >= lines - 2) ? cur_line - (lines - 3) : 0;
+          } else { 
+            cur_line += (lines - 3); scr_offset = cur_line - (lines - 3); 
           }
-        } else {
-          cur_line = cur_line + (lines - 3);
-          scr_offset = cur_line - (lines - 3);
+          if (cur_char > buffer[cur_line].size()) cur_char = buffer[cur_line].size();
         }
-      }
-    } else if (mode == WRITE) {
-      if (ch == 27) { // escape => normal mode
-        mode_normal();
-      } else if (ch == KEY_UP) {
-        move_up();
-      } else if (ch == KEY_DOWN) {
-        move_down();
-      } else if (ch == KEY_LEFT) {
-        move_left();
-      } else if (ch == KEY_RIGHT) {
-        move_right();
-      } else if (ch == KEY_BACKSPACE || ch == 127 || ch == 263 || ch == '\b') { // backspace => delete before cursor
-        delchar(-1);
-      } else if (ch == KEY_DC || ch == 330) { // del => delete at cursor 
-        delchar(0);
-      } else if (ch == '\n') { // enter => new line
-        newline();
-      } else if (ch == KEY_HOME) { // home => start of line
-        cur_char = 0;
-      } else if (ch == KEY_END) { // end => end of line
-        cur_char = buffer[cur_line].size();
-      } else if (ch == 339) { // pgup => scroll up
-        if (cur_line - (lines - 2) < 0) {
-          cur_line = 0;
-          scr_offset = 0;
-          if (cur_char > buffer[0].size() - 1) {
-            cur_char = buffer[0].size();
-          }
-        } else {
-          // this might cause crash in some edge cases, but im unable to find such
-          cur_line = cur_line - (lines - 3);
-          scr_offset = cur_line;
-        }
-      } else if (ch == 338) { // pgdn => scroll down
-        if (cur_line + (lines - 2) > buffer.size()) {
-          cur_line = buffer.size() - 1;
-          scr_offset = buffer.size() - (lines - 2);
-          if (cur_char > buffer[cur_line].size()) {
-            cur_char = buffer[cur_line].size();
-          }
-        } else {
-          cur_line = cur_line + (lines - 2);
-          scr_offset = cur_line - (lines - 3);
-        }
-      } else if (std::isprint(ch) || std::isspace(ch)) {
-        buffer[cur_line].insert(cur_char, 1, ch);
-        cur_char++;
-      }
-    } else if (mode == SELECT) {
-      if (ch == 27) { // escape => normal mode
-        mode_normal();
-      } else {
-        bottomline = " SELECT   | Error: SELECT mode not implemented yet.";  
-      }
-    } else if (mode == MOVE) {
-      if (ch == 27) { // escape => normal mode
-        mode_normal();
-      } else if (ch == KEY_UP) {
-        if (cur_line > 0) {
-          std::swap(buffer[cur_line], buffer[cur_line - 1]);
-          move_up();
-        }
-      } else if (ch == KEY_DOWN) {
-        if (cur_line < buffer.size() - 1) {
-          std::swap(buffer[cur_line], buffer[cur_line + 1]);
-          move_down();
-        }
-      } else if (ch == 't') { // t => top of buffer
-        std::swap(buffer[cur_line], buffer[0]);
-        cur_line = 0;
-        scr_offset = 0;
-        if (cur_char > buffer[0].size() - 1) {
-          cur_char = buffer[0].size();
-        }
-      } else if (ch == 'b') {
-        std::swap(buffer[cur_line], buffer[buffer.size() - 1]);
-        cur_line = buffer.size() - 1;
-        if (cur_line >= lines - 2) {
-          scr_offset = cur_line - (lines - 3);
-        } else scr_offset = 0;
-        // scr_offset = buffer.size() - (lines - 2);
-        if (cur_char > buffer[cur_line].size()) {
-          cur_char = buffer[cur_line].size();
-        }
-      } else {
-        bottomline = " MOVE     | Error: MOVE mode not implemented yet.";  
-      }
-    } else if (mode == GOTO) {
-      if (ch == 27) { // escape => normal mode
-        input.clear();
-        mode_normal();
-      } else if (ch == KEY_BACKSPACE || ch == 127 || ch == 263 || ch == '\b') { // backspace => delete before cursor
-        if (!input.empty()) {
-          input.pop_back();
-        }
-      } else if (ch == '\n') {
-        if (!input.empty()) {
-          int inputnum;
-          std::stringstream inpststr(input);
-          inpststr >> inputnum;
-          if (inputnum > 0 && inputnum <= buffer.size()) {
-            cur_line = inputnum - 1;
-            if (buffer.size() <= lines - 2) {
-              scr_offset = 0;
-            } else {
-              if (inputnum <= lines - 2) {
-                scr_offset = 0;
-              } else {
-                scr_offset = inputnum - (lines - 2);
-              }
-            }
-            input.clear();
-            mode_normal();
-          } else {
-            bottomline = " GO TO    | Error: Line number out of range.";  
-            input.clear();
-            mode = NORMAL;
-          }
-        } else {
-          bottomline = " GO TO    | Error: No line number inputted.";  
-          mode = NORMAL;
-        }
-      } else if (std::isdigit(ch)) {
-        input.push_back(ch);
-      }
-    } else if (mode == SAVE) {
-      if (ch == 27) { // escape => normal mode
-        input.clear();
-        mode_normal();
-      } else if (ch == KEY_BACKSPACE || ch == 127 || ch == 263 || ch == '\b') { // backspace => delete before cursor
-        if (!input.empty()) {
-          input.pop_back();
-        }
-      } else if (ch == '\n') {
-        if (!input.empty()) {
-          filename = input;
-          input.clear();
-          save();
-          mode_normal();
-        } else {
-          bottomline = " SAVE AS  | Error: No filename. Please input a filename.";  
-        }
-      } else if (std::isprint(ch)) {
-        input.push_back(ch);
-      }
-    } else if (mode == OPEN) {
-      if ((ch == KEY_BACKSPACE || ch == 127 || ch == 263 || ch == '\b') && !input.empty()) { // backspace => delete before cursor
-        input.pop_back();
-      } else if (ch == '\n') {
-        if (!input.empty()) {
-          open_file(input);
-          input.clear();
-        } else {
-          bottomline = " OPEN     | Error: No filename. Please input a filename.";  
-        }
-      } else if (std::isprint(ch)) {
-        input.push_back(ch);
-      }
-    } else if (mode == NEW) {
-      if (ch == 27) { // escape => quit
         break;
-      } else if ((ch == KEY_BACKSPACE || ch == 127 || ch == 263 || ch == '\b') && !input.empty()) { // backspace => delete before cursor
-        input.pop_back();
-      } else if (ch == '\n') {
-        if (!input.empty()) {
-          new_file(input);
-          input.clear();
-          mode_normal();
-        } else {
-          bottomline = " NEW FILE | Error: No filename. Please input a filename.";  
+
+      case WRITE:
+        if (ch == 27) mode_normal();
+        else if (ch == KEY_UP) move_up();
+        else if (ch == KEY_DOWN) move_down();
+        else if (ch == KEY_LEFT) move_left();
+        else if (ch == KEY_RIGHT) move_right();
+        else if (ch == KEY_BACKSPACE || ch == 127 || ch == 263 || ch == '\b') delchar(-1);
+        else if (ch == KEY_DC || ch == 330) delchar(0);
+        else if (ch == '\n') newline();
+        else if (ch == KEY_HOME) cur_char = 0;
+        else if (ch == KEY_END) cur_char = buffer[cur_line].size();
+        else if (ch == 339) { // pgup
+           if (cur_line - (lines - 2) < 0) { cur_line = 0; scr_offset = 0; }
+           else { cur_line -= (lines - 3); scr_offset = cur_line; }
+           if (cur_char > buffer[cur_line].size()) cur_char = buffer[cur_line].size();
         }
-      } else if (std::isprint(ch)) {
-        input.push_back(ch);
-      }
-    } else if (mode == SHELL) {
-      if (ch == 27) { // escape => normal mode
-        input.clear();
-        mode_normal();
-      } else if ((ch == KEY_BACKSPACE || ch == 127 || ch == 263 || ch == '\b') && !input.empty()) { // backspace => delete before cursor
-        if (!input.empty()) {
-          input.pop_back();
+        else if (ch == 338) { // pgdn
+          if (cur_line + (lines - 2) > buffer.size()) { 
+             cur_line = buffer.size() - 1; scr_offset = buffer.size() - (lines - 2); 
+          } else { 
+             cur_line += (lines - 2); scr_offset = cur_line - (lines - 3); 
+          }
+          if (cur_char > buffer[cur_line].size()) cur_char = buffer[cur_line].size();
         }
-      } else if (ch == '\n') {
-        std::string cmdout = run_shellcmd(input);
-        insertstring(cmdout);
-        input.clear();
-        mode_normal();
-      } else if (std::isprint(ch)) {
-        input.push_back(ch);
-      }
+        else if (std::isprint(ch) || std::isspace(ch)) {
+          buffer[cur_line].insert(cur_char, 1, ch);
+          cur_char++;
+        }
+        break;
+
+      case SELECT:
+        if (ch == 27) mode_normal();
+        else bottomline = " SELECT   | Error: SELECT mode not implemented yet.";  
+        break;
+
+      case MOVE:
+        if (ch == 27) mode_normal();
+        else if (ch == KEY_UP && cur_line > 0) {
+          std::swap(buffer[cur_line], buffer[cur_line - 1]); move_up();
+        } else if (ch == KEY_DOWN && cur_line < buffer.size() - 1) {
+          std::swap(buffer[cur_line], buffer[cur_line + 1]); move_down();
+        } else if (ch == 't') {
+          std::swap(buffer[cur_line], buffer[0]); cur_line = 0; scr_offset = 0;
+          if (cur_char > buffer[0].size() - 1) cur_char = buffer[0].size();
+        } else if (ch == 'b') {
+          std::swap(buffer[cur_line], buffer.back());
+          cur_line = buffer.size() - 1;
+          scr_offset = (cur_line >= lines - 2) ? cur_line - (lines - 3) : 0;
+          if (cur_char > buffer[cur_line].size()) cur_char = buffer[cur_line].size();
+        } else bottomline = " MOVE     | Error: MOVE mode not implemented yet.";  
+        break;
+
+      case GOTO:
+        if (ch == 27) { input.clear(); mode_normal(); }
+        else if ((ch == KEY_BACKSPACE || ch == 127 || ch == 263 || ch == '\b') && !input.empty()) input.pop_back();
+        else if (ch == '\n') {
+           if (!input.empty()) {
+             int inputnum; std::stringstream(input) >> inputnum;
+             if (inputnum > 0 && inputnum <= buffer.size()) {
+               cur_line = inputnum - 1;
+               if (buffer.size() <= lines - 2) scr_offset = 0;
+               else scr_offset = (inputnum <= lines - 2) ? 0 : inputnum - (lines - 2);
+               input.clear(); mode_normal();
+             } else { bottomline = " GO TO    | Error: Line number out of range."; input.clear(); mode = NORMAL; }
+           } else { bottomline = " GO TO    | Error: No line number inputted."; mode = NORMAL; }
+        } else if (std::isdigit(ch)) input.push_back(ch);
+        break;
+
+      case SAVE:
+        if (ch == 27) { input.clear(); mode_normal(); }
+        else if ((ch == KEY_BACKSPACE || ch == 127 || ch == 263 || ch == '\b') && !input.empty()) input.pop_back();
+        else if (ch == '\n') {
+           if (!input.empty()) { filename = input; input.clear(); save(); mode_normal(); }
+           else bottomline = " SAVE AS  | Error: No filename. Please input a filename.";  
+        } else if (std::isprint(ch)) input.push_back(ch);
+        break;
+
+      case OPEN:
+        if ((ch == KEY_BACKSPACE || ch == 127 || ch == 263 || ch == '\b') && !input.empty()) input.pop_back();
+        else if (ch == '\n') {
+           if (!input.empty()) { open_file(input); input.clear(); }
+           else bottomline = " OPEN     | Error: No filename. Please input a filename.";  
+        } else if (std::isprint(ch)) input.push_back(ch);
+        break;
+
+      case NEW:
+        if (ch == 27) goto end_loop;
+        else if ((ch == KEY_BACKSPACE || ch == 127 || ch == 263 || ch == '\b') && !input.empty()) input.pop_back();
+        else if (ch == '\n') {
+           if (!input.empty()) { new_file(input); input.clear(); mode_normal(); }
+           else bottomline = " NEW FILE | Error: No filename. Please input a filename.";  
+        } else if (std::isprint(ch)) input.push_back(ch);
+        break;
+
+      case SHELL:
+        if (ch == 27) { input.clear(); mode_normal(); }
+        else if ((ch == KEY_BACKSPACE || ch == 127 || ch == 263 || ch == '\b') && !input.empty()) input.pop_back();
+        else if (ch == '\n') {
+           std::string cmdout = run_shellcmd(input); insertstring(cmdout); input.clear(); mode_normal();
+        } else if (std::isprint(ch)) input.push_back(ch);
+        break;
     }
+    // PATCH END
 
     if (cur_line >= buffer.size()) {
       cur_line = buffer.size() - 1;
@@ -647,6 +505,7 @@ int main(int argc, char* argv[]) {
     updatescreen();
   }
 
+  end_loop:
   endwin();
 
   return 0;
