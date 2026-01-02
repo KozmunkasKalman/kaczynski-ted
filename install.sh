@@ -4,6 +4,7 @@ set -e
 
 buildmsg() {
   echo -ne "[ ] Building Kaczynski-TED...                (1/2)"
+  mkdir bin/
   g++ -std=c++23 -lncurses -o bin/kaczynski src/main.cpp
   if [ $? -eq 0 ]; then
     echo -ne "\r[\033[0;32m+\033[0m] Kaczynski-TED built successfully.        (1/2)\n"
