@@ -65,6 +65,10 @@ struct {
 
 
 std::string run_shellcmd(std::string cmd, bool do_msg) {
+  // TODO: - fix freezes from commands that: - read stdin (like `$ cat` with no arguments)
+  //                                         - run until killed with ^C (like `$ top`)
+  //       - fix crashes caused by certain commands (usually fetch scripts and such)
+  //       - make the function take in std::string_view instead of std::string (cmd_full.append() could work)
   std::string output;
 
   std::string full_cmd = cmd + " 2>&1";
@@ -301,7 +305,8 @@ void page_down() {
     editor.cur_line = buffer.content.size() - 1; 
     editor.scr_offset = (editor.cur_line >= ui.text_height) ? editor.cur_line - (ui.lines - 3) : 0;
   } else { 
-    editor.cur_line += ui.text_height + get_line_wraps(editor.cur_line) - 1 - 1; editor.scr_offset = editor.cur_line - (ui.lines - 3); 
+    editor.cur_line += ui.text_height + get_line_wraps(editor.cur_line) - 1 - 1;
+    editor.scr_offset = editor.cur_line - (ui.text_height - 1); 
   }
   if (editor.cur_char > buffer.content[editor.cur_line].size()) editor.cur_char = buffer.content[editor.cur_line].size();
 }
