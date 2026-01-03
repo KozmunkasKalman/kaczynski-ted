@@ -30,9 +30,12 @@ git clone https://github.com/KozmunkasKalman/kaczynski-ted.git && cd kaczynski-t
 - [x] Visual selection of text
 - [ ] Move selected text around in move mode
 - [ ] Cut, copy, paste support for system clipboard
-- [x] Going to specified line
+- [ ] Undo & redo
 - [x] Home & End keys functionality
 - [x] Page up & Page down keys functionality
+- [x] Going to specified line
+- [ ] Searching for text (like vim /)
+- [ ] Find & replace (sed style)
 - [x] Insert key functionality (overwriting text)
 - [ ] Scroll lock key functionality (locking screen in place)
 - [ ] Tabs (support for multiple simultaneously open buffers)
@@ -44,7 +47,7 @@ git clone https://github.com/KozmunkasKalman/kaczynski-ted.git && cd kaczynski-t
 - [ ] Macros
 - [x] Configuration file (~/.config/kaczynski-ted/unabombrc)
 
-## Keybinds
+### Keybinds
 
 The Kaczynski keybinds are not like Vim, Emacs, or Nano.
-To learn the keybindings, please do the installation process and go through the tutorial provided.
+To learn the keybinds, please do the installation process and go through the tutorial provided.

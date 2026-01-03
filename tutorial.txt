@@ -28,7 +28,20 @@ of the line with [end]
 You can press [page up] to go one screen up, and [page down] to go
 one screen down.
 
+[T] goes to the top of the buffer, [B] goes to the bottom of it,
+and [G] takes in an input number and goes to that on [enter].
+
 Now move your cursor down until the next section.
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -77,7 +90,7 @@ sentences as fast as you can.
   Sphinx of black quartz, judge my vow!
 >
 
-Proceed to the section about SELECT mode.
+Proceed to the next section about SELECT mode.
 
 
 
@@ -98,7 +111,7 @@ Try to select the (((texts))) marked with ">" in and delete it
 > Now [X] to select this line, move up until the first ">" is
 selected, and delete it.
 
-Proceed to the section about MOVE mode.
+Proceed to the next section about MOVE mode.
 
 
 
@@ -107,13 +120,14 @@ Proceed to the section about MOVE mode.
 You can enter MOVE mode by pressing [M] in NORMAL mode.
 In MOVE mode you can press up and down to move the current
 line up or down.
+By pressing [escape] you can go back to NORMAL mode.
 
 > Try moving THIS line
 > under THIS one.
 > but above THIS one.
 > Now move THIS line above the previous ones
 
-Proceed to the section about SHELL mode.
+Proceed to the next section about SHELL mode.
 
 
 
@@ -125,16 +139,21 @@ which will insert the command's output at your cursor.
 
 Try it by running the "date" command at the ">".
 > 
-Try it by running the "cat test.txt" command in the line under.
+Try it by running the "cat test.txt" command at the ">".
+>
+
+Proceed to the next section about the configuration.
 
 
 
 
 
 The Kaczynski configuration "unabombrc" file is located in
-~/.config/Kaczynski/unabombrc
+"~/.config/kaczynski/unabombrc"
 If you did the installation process, the template one should
 already be there.
+This file consists of key-value pairs per line.
+Lines beginning with the "#" character are treated as comments.
 
 
 

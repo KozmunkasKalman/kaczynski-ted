@@ -147,11 +147,12 @@ std::string run_shellcmd(std::string cmd, bool do_msg) {
     std::string line(cmdbuf);
     if (!line.empty() && line.back() == '\n')
       line.pop_back();
-    output += line + "\n";
+    output += line + '\n';
   }
 
   if (do_msg) {
-    editor.bottomline = " SHELL    │ > " + output;
+    std::string outmsg = (output.find('\n') != std::string::npos) ? output.substr(0, output.find('\n')) : output;
+    editor.bottomline = " SHELL    │ > " + outmsg;
   }
 
   pclose(pipe);
@@ -180,8 +181,9 @@ void insert_string(std::string cont_str) {
 
   buffer.content[editor.cur_line + str_vect.size() - 1] += tail;
 
+  int prev = editor.cur_char;
   editor.cur_line += str_vect.size() - 1;
-  editor.cur_char = buffer.content[editor.cur_line + str_vect.size() - 1].size() - tail.size();
+  editor.cur_char = buffer.content[prev + str_vect.size() - 1].size() - tail.size();
 }
 
 void set_mode(Mode target_mode, int submode = 0) {
@@ -293,7 +295,8 @@ void open_file(std::string file) {
 }
 
 int get_line_wraps(int line) {
-    return std::max(1, (int(buffer.content[line].size()) + ui.text_width - 1) / ui.text_width);
+  if (line < 0 || line >= buffer.content.size()) return 1;
+  return std::max(1, (int(buffer.content[line].size()) + ui.text_width - 1) / ui.text_width);
 }
 
 void move_up() {
@@ -730,7 +733,7 @@ int main(int argc, char* argv[]) {
             selection.start_char = 0;
           } else if (editor.cur_line > selection.end_line ){
             selection.end_line = editor.cur_line;
-            selection.end_char = buffer.content[editor.cur_char].size();
+            selection.end_char = buffer.content[editor.cur_line].size();
           }
         }
         else if (selection.type == 1) {
