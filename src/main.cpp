@@ -5,6 +5,7 @@
 #include <string>
 #include <cctype>
 #include <cstdlib>
+#include <filesystem>
 #include <ncurses.h>
 
 
@@ -58,11 +59,73 @@ struct {
   int gutter_width;
   int text_width;
 
-  int bottomline_height;
   int text_height;
 } ui;
 
+struct {
+  bool enable_line_numbers;
+  int bottomline_height;
+  int tab_size;
+} config;
 
+
+
+bool file_exists(std::string path) {
+  return std::filesystem::exists(path);
+}
+
+std::string get_config_path() {
+  return std::string(std::getenv("HOME")) + "/.config/kaczynski/unabombrc";
+}
+bool to_bool(std::string v, bool def) {
+  if (v == "true"  || v == "1" || v == "yes" || v == "on" ) return true;
+  if (v == "false" || v == "0" || v == "no"  || v == "off") return false;
+  return def;
+}
+std::string trim(std::string s) {
+  int start = s.find_first_not_of(" \t");
+  if (start == std::string::npos) return "";
+  int end = s.find_last_not_of(" \t");
+  return s.substr(start, end - start + 1);
+}
+void parse_config(std::string path) {
+  std::ifstream config_file(path);
+  std::string line; 
+
+  while (std::getline(config_file, line)) {
+    line = trim(line);
+
+    // empty or comment
+    if (line.empty() || line[0] == '#') continue;
+
+    // key = value pairs
+    auto equals = line.find('=');
+    if (equals == std::string::npos) continue;
+
+    std::string key = trim(line.substr(0, equals));
+    std::string value = trim(line.substr(equals + 1));
+
+    if (key == "line_numbers" || key == "enable_line_nums") {
+      config.enable_line_numbers = to_bool(value, config.enable_line_numbers);
+    }
+    else if (key == "bottomline_height") {
+      if (std::stoi(value) > 0) config.bottomline_height = std::stoi(value);
+    }
+    else if (key == "tab_size" || key == "tab_chars" || key == "tab_width") {
+      if (std::stoi(value) > 0) config.tab_size = std::stoi(value);
+    }
+  }
+}
+void load_config() {
+  /* default values */
+  config.enable_line_numbers = true;
+  config.bottomline_height = 2;
+  config.tab_size = 4;
+
+  if (get_config_path().empty() || !file_exists(get_config_path())) return;
+
+  parse_config(get_config_path());
+}
 
 std::string run_shellcmd(std::string cmd, bool do_msg) {
   // TODO: - fix freezes from commands that: - read stdin (like `$ cat` with no arguments)
@@ -88,7 +151,7 @@ std::string run_shellcmd(std::string cmd, bool do_msg) {
   }
 
   if (do_msg) {
-    editor.bottomline = " SHELL    | > " + output;
+    editor.bottomline = " SHELL    │ > " + output;
   }
 
   pclose(pipe);
@@ -126,7 +189,9 @@ void set_mode(Mode target_mode, int submode = 0) {
     case NORMAL:
       editor.mode = NORMAL;
       cursor.type = BLOCK;
-      editor.bottomline = " NORMAL   | " + buffer.name;
+      if (submode != 1) {
+        editor.bottomline = " NORMAL   │ " + buffer.name;
+      }
       break;
 
     case WRITE:
@@ -198,7 +263,7 @@ void save(bool do_msg) {
       out << line << "\n";
     }
     if (do_msg) {
-      editor.bottomline = " SAVED    | " + buffer.name;
+      editor.bottomline = " SAVED    │ " + buffer.name;
     }
   } else {
     set_mode(SAVE);
@@ -212,13 +277,8 @@ void new_file(std::string name) {
   save(true);
 }
 
-bool check_if_file_exists(std::string name) {
-  std::ifstream f(name.c_str());
-  return f.good();
-}
-
 void open_file(std::string file) {
-  if (check_if_file_exists(file)) {
+  if (file_exists(file)) {
     buffer.content.clear();
     buffer.name = file;
     std::ifstream in(buffer.name);
@@ -228,7 +288,7 @@ void open_file(std::string file) {
     }
     set_mode(NORMAL);
   } else {
-    editor.bottomline = " OPEN     | Error: File \"" + file + "\" doesn't exist.";
+    editor.bottomline = " OPEN     │ Error: File \"" + file + "\" doesn't exist.";
   }
 }
 
@@ -256,21 +316,31 @@ void move_up() {
   }
 }
 void move_down() {
-  if (editor.cur_line < buffer.content.size() - 1 && buffer.content[editor.cur_line].size() > ui.text_width && editor.cur_char + ui.text_width < buffer.content[editor.cur_line].size()) {
+    if (editor.cur_line < buffer.content.size() - 1 && buffer.content[editor.cur_line].size() > ui.text_width && editor.cur_char + ui.text_width < buffer.content[editor.cur_line].size()) {
     editor.cur_char += ui.text_width;
   } else if (editor.cur_line < buffer.content.size() - 1) {
-    if (editor.cur_char + ui.text_width - editor.cur_char % ui.text_width + 1 <= buffer.content[editor.cur_line].size()) {
+    if (editor.cur_char / ui.text_width + 1 < get_line_wraps(editor.cur_line)) {
       editor.cur_char += ui.text_width;
     } else {
       editor.cur_line++;
-      editor.cur_char = editor.cur_char % ui.text_width;
+      editor.cur_char %= ui.text_width;
     }
     if (editor.cur_line >= editor.scr_offset + ui.text_height) {
-      editor.scr_offset = editor.cur_line - (ui.lines - 3);
+      editor.scr_offset = editor.cur_line - (ui.text_height - 1);
     }
   }
   if (editor.cur_char > buffer.content[editor.cur_line].size()) {
     editor.cur_char = buffer.content[editor.cur_line].size();
+  }
+
+  int visual_row = 0;
+  for (int i = editor.scr_offset; i < editor.cur_line; i++) {
+    visual_row += get_line_wraps(i);
+  }
+  visual_row += editor.cur_char / ui.text_width;
+  while (visual_row >= ui.text_height) {
+    editor.scr_offset++;
+    visual_row--;
   }
 }
 void move_left() {
@@ -301,12 +371,12 @@ void page_up() {
   if (editor.cur_char > buffer.content[editor.cur_line].size()) editor.cur_char = buffer.content[editor.cur_line].size();
 }
 void page_down() {
-  if (editor.cur_line + ui.text_height >= buffer.content.size()) {
-    editor.cur_line = buffer.content.size() - 1;
+  if (editor.cur_line + ui.text_height >= buffer.content.size()) { 
+    editor.cur_line = buffer.content.size() - 1; 
     editor.scr_offset = (editor.cur_line >= ui.text_height) ? editor.cur_line - (ui.lines - 3) : 0;
-  } else {
+  } else { 
     editor.cur_line += ui.text_height + get_line_wraps(editor.cur_line) - 1 - 1;
-    editor.scr_offset = editor.cur_line - (ui.text_height - 1);
+    editor.scr_offset = editor.cur_line - (ui.text_height - 1); 
   }
   if (editor.cur_char > buffer.content[editor.cur_line].size()) editor.cur_char = buffer.content[editor.cur_line].size();
 }
@@ -341,7 +411,6 @@ void del_char(int del_offset) {
       buffer.content.erase(buffer.content.begin() + editor.cur_line);
       editor.cur_line--;
       editor.cur_char = prev;
-      insert_string(" ");
     }
   } else {
     if (editor.cur_char < buffer.content[editor.cur_line].size()) {
@@ -409,24 +478,32 @@ void update_screen() {
 
   erase();
 
-  ui.linenum_digits = std::to_string(buffer.content.size()).length();
-  ui.gutter_width = ui.linenum_digits + 4;
+  if (config.enable_line_numbers) {
+    ui.linenum_digits = std::to_string(buffer.content.size()).length();
+    ui.gutter_width = ui.linenum_digits + 4;
+  } else {
+    ui.linenum_digits = 0;
+    ui.gutter_width = 1;
+  }
   ui.text_width = ui.cols - ui.gutter_width - 1;
-  ui.text_height = ui.lines - ui.bottomline_height;
+
+  ui.text_height = ui.lines - config.bottomline_height;
 
   int rend_line = 0;
-
 
   for (int i = editor.scr_offset; i < buffer.content.size() + ui.text_height && rend_line < ui.text_height; i++) {
     if (i < buffer.content.size()) {
       std::string &line = buffer.content[i];
+
       for (int start = 0; start < std::max(1, int(line.size())); start += ui.text_width) {
         if (rend_line >= ui.text_height) break;
 
-        if (start == 0)
-          mvprintw(rend_line, 0, " %*d | ", ui.linenum_digits, i + 1);
-        else
-          mvprintw(rend_line, 0, " %*s | ", ui.linenum_digits, ".");
+        if (config.enable_line_numbers) {
+          if (start == 0)
+            mvprintw(rend_line, 0, " %*d │ ", ui.linenum_digits, i + 1);
+          else
+            mvprintw(rend_line, 0, " %*s │ ", ui.linenum_digits, ".");
+        }
 
         for (int j = start; j < start + ui.text_width && j < line.size(); j++) {
           if (is_selected(i, j)) attron(A_REVERSE);
@@ -436,13 +513,69 @@ void update_screen() {
         rend_line++;
       }
     } else {
+      if (config.enable_line_numbers) mvprintw(rend_line, 0, " %*s │", ui.linenum_digits, " ");
       rend_line++;
-      mvprintw(i, 0, " %*s |", ui.linenum_digits, " ");
     }
   }
 
-  mvhline(ui.lines - ui.bottomline_height, 0, '-', ui.cols);
-  mvprintw(ui.lines - ui.bottomline_height + 1, 0, "%s", editor.bottomline.c_str());
+  for (int i = 0; i < ui.cols; i++) {
+    mvaddwstr(ui.lines - config.bottomline_height, i, L"─");
+  }
+  
+  mvaddwstr(ui.lines - config.bottomline_height, 10, L"┬");   
+  if (config.enable_line_numbers) {
+    if (ui.gutter_width - 2 == 10) {
+      mvaddwstr(ui.lines - config.bottomline_height, 10, L"┼");   
+    } else {
+      mvaddwstr(ui.lines - config.bottomline_height, ui.gutter_width - 2, L"┴");
+    }
+  }
+
+  if (editor.bottomline.empty()) {
+    // TODO: turn this into a switch statement 
+    if (editor.mode == NONE) {
+      editor.bottomline = "          │ [O]pen file   [N]ew file   [Q]uit";
+    } else if (editor.mode == NORMAL) {
+      editor.bottomline = " NORMAL   │ " + buffer.name;
+      // editor.bottomline = " NORMAL   │ " + buffer.name + "          " + std::to_string(editor.cur_line + 1) + ":" + std::to_string(editor.cur_char + 1);
+    } else if (editor.mode == WRITE) {
+      editor.bottomline = " WRITE    │ " + buffer.name;
+    } else if (editor.mode == SELECT) {
+      if (selection.start_line && selection.end_line && selection.start_char && selection.end_char) {
+        editor.bottomline = " SELECT   │ " + std::to_string(selection.start_line) + ":" + std::to_string(selection.start_char) + " - " + std::to_string(selection.end_line) + ":" + std::to_string(selection.end_char);
+      } else {
+        editor.bottomline = " SELECT   │ ";
+      }
+    } else if (editor.mode == MOVE) {
+      editor.bottomline = " MOVE     │ " + buffer.name;
+    } else if (editor.mode == GOTO) {
+      editor.bottomline = " GO TO    │ L" + editor.input;
+    } else if (editor.mode == SAVE) {
+      if (editor.input.empty()) {
+        editor.bottomline = " SAVE AS  │ ...";  
+      } else {
+        editor.bottomline = " SAVE AS  │ " + editor.input;
+      }
+    } else if (editor.mode == OPEN) {
+      if (editor.input.empty()) {
+        editor.bottomline = " OPEN     │ ...";  
+      } else {
+        editor.bottomline = " OPEN     │ " + editor.input;
+      }
+    } else if (editor.mode == NEW) {
+      if (editor.input.empty()) {
+        editor.bottomline = " NEW FILE │ ...";  
+      } else {
+        editor.bottomline = " NEW FILE │ " + editor.input;
+      }
+    } else if (editor.mode == SHELL) {
+      editor.bottomline = " SHELL    │ $ " + editor.input;
+    }
+  }
+
+  editor.bottomline += ' ';
+
+  mvprintw(ui.lines - config.bottomline_height + 1, 0, "%s", editor.bottomline.c_str());
 
   static CursorType last_cursor = HIDDEN;
   if (cursor.type != HIDDEN) {
@@ -466,7 +599,6 @@ void update_screen() {
   }
   cursor.row += editor.cur_char / ui.text_width;
   cursor.col = ui.gutter_width + (editor.cur_char % ui.text_width);
-
   move(cursor.row, cursor.col);
   refresh();
 }
@@ -479,6 +611,10 @@ int main(int argc, char* argv[]) {
     exit(1);
   }
 
+  setlocale(LC_ALL, "");
+
+  load_config();
+
   if (argc == 2 && argv[1]) {
     open_file(argv[1]);
   } else {
@@ -489,8 +625,6 @@ int main(int argc, char* argv[]) {
   if (buffer.content.empty()) {
     buffer.content.push_back("");
   }
-
-  ui.bottomline_height = 2;
 
   initscr();
 
@@ -531,8 +665,9 @@ int main(int argc, char* argv[]) {
         else if (ch == 'X') { save(true); goto end_loop; }
         else if (ch == 'O') set_mode(OPEN);
         else if (ch == 'N') set_mode(NEW);
-        else if (ch == 'd' || ch == KEY_DC || ch == 330) del_char(0);
+        else if (ch == ' ') move_right();
         else if (ch == KEY_BACKSPACE || ch == 127 || ch == 263 || ch == '\b') move_left();
+        else if (ch == 'd' || ch == KEY_DC || ch == 330) del_char(0);
         else if (ch == 'D') del_line();
         else if (ch == 'x') set_mode(SELECT, 2);
         else if (ch == 't') {
@@ -567,6 +702,7 @@ int main(int argc, char* argv[]) {
         else if (ch == KEY_END) editor.cur_char = buffer.content[editor.cur_line].size();
         else if (ch == 339) page_up();
         else if (ch == 338) page_down();
+        else if (ch == '\t') { for (int i = 0; i < config.tab_size; i++) { insert_string(" "); } }
         else if (std::isprint(ch) || std::isspace(ch)) {
           if (editor.insert) del_char(0); // kind of a workaround tbh but it works
           buffer.content[editor.cur_line].insert(editor.cur_char, 1, ch);
@@ -629,6 +765,19 @@ int main(int argc, char* argv[]) {
 
       case GOTO:
         if (ch == 27) { editor.input.clear(); set_mode(NORMAL); }
+        else if (editor.input.empty() && ch == 't') { 
+          editor.cur_line = 0; editor.scr_offset = 0; 
+          if (editor.cur_char > buffer.content[0].size() - 1) editor.cur_char = buffer.content[0].size();
+          editor.input.clear();
+          set_mode(NORMAL); 
+        } 
+        else if (editor.input.empty() && ch == 'b') { 
+          editor.cur_line = buffer.content.size() - 1;
+          editor.scr_offset = (editor.cur_line >= ui.text_height) ? editor.cur_line - (ui.lines - 3) : 0;
+          if (editor.cur_char > buffer.content[editor.cur_line].size()) editor.cur_char = buffer.content[editor.cur_line].size();
+          editor.input.clear();
+          set_mode(NORMAL); 
+        } 
         else if ((ch == KEY_BACKSPACE || ch == 127 || ch == 263 || ch == '\b') && !editor.input.empty()) editor.input.pop_back();
         else if (ch == '\n') {
            // TODO: optimize this shit
@@ -639,8 +788,8 @@ int main(int argc, char* argv[]) {
                if (buffer.content.size() <= ui.text_height) editor.scr_offset = 0;
                else editor.scr_offset = (inputnum <= ui.text_height) ? 0 : inputnum - ui.text_height;
                editor.input.clear(); set_mode(NORMAL);
-             } else { editor.bottomline = " GO TO    | Error: Line number out of range."; editor.input.clear(); set_mode(NORMAL); }
-           } else { editor.bottomline = " GO TO    | Error: No line number inputted."; set_mode(NORMAL); }
+             } else { editor.bottomline = " GO TO    │ Error: Line number out of range."; editor.input.clear(); set_mode(NORMAL, 1); }
+           } else { editor.bottomline = " GO TO    │ Error: No line number inputted."; set_mode(NORMAL, 1); }
         }
         else if (std::isdigit(ch)) editor.input.push_back(ch);
         break;
@@ -650,28 +799,43 @@ int main(int argc, char* argv[]) {
         else if ((ch == KEY_BACKSPACE || ch == 127 || ch == 263 || ch == '\b') && !editor.input.empty()) editor.input.pop_back();
         else if (ch == '\n') {
            if (!editor.input.empty()) {
-             buffer.name = editor.input; editor.input.clear(); save(true); set_mode(NORMAL);
-           } else editor.bottomline = " SAVE AS  | Error: No filename. Please input a filename.";
+             if (file_exists(editor.input)) editor.bottomline = " SAVE AS  │ Warning: That file already exists: choose a different one, or remove it.";
+             else { buffer.name = editor.input; editor.input.clear(); save(true); set_mode(NORMAL); }
+           } else editor.bottomline = " SAVE AS  │ Error: No filename. Please input a filename.";  
         }
         else if (std::isprint(ch)) editor.input.push_back(ch);
         break;
 
       case OPEN:
-        if (ch == 27) goto end_loop;
+        if (ch == 27) {
+          if (!buffer.name.empty()) {
+            set_mode(NORMAL);
+          } else {
+            goto end_loop;
+          }
+        }
         else if ((ch == KEY_BACKSPACE || ch == 127 || ch == 263 || ch == '\b') && !editor.input.empty()) editor.input.pop_back();
         else if (ch == '\n') {
            if (!editor.input.empty()) { open_file(editor.input); editor.input.clear(); }
-           else editor.bottomline = " OPEN     | Error: No filename. Please input a filename.";
+           else editor.bottomline = " OPEN     │ Error: No filename. Please input a filename.";
         }
         else if (std::isprint(ch)) editor.input.push_back(ch);
         break;
 
       case NEW:
-        if (ch == 27) goto end_loop;
+        if (ch == 27) {
+          if (!buffer.name.empty()) {
+            set_mode(NORMAL);
+          } else {
+            goto end_loop;
+          }
+        }
         else if ((ch == KEY_BACKSPACE || ch == 127 || ch == 263 || ch == '\b') && !editor.input.empty()) editor.input.pop_back();
         else if (ch == '\n') {
-           if (!editor.input.empty()) { new_file(editor.input); editor.input.clear(); set_mode(NORMAL); }
-           else editor.bottomline = " NEW FILE | Error: No filename. Please input a filename.";
+           if (!editor.input.empty()) {
+             if (file_exists(editor.input)) editor.bottomline = " NEW FILE │ Warning: That file already exists: choose a different one, or remove it."; 
+             else { buffer.name = editor.input; editor.input.clear(); save(true); set_mode(NORMAL); }
+           } else editor.bottomline = " NEW FILE │ Error: No filename. Please input a filename.";  
         }
         else if (std::isprint(ch)) editor.input.push_back(ch);
         break;
