@@ -459,6 +459,9 @@ void del_select() {
     editor.cur_line = selection.start_line;
     editor.cur_char = selection.start_char;
 
+    // kinda goofy solution but it prevents visual glitches upon deleting whole buffer
+    if (editor.cur_line == 0 && editor.cur_char == 0) page_up();
+
     selection.type = 0;
 }
 
@@ -475,23 +478,7 @@ void newline() {
 void update_win_size() {
   getmaxyx(stdscr, ui.lines, ui.cols);
 }
-
-void update_screen() {
-  update_win_size();
-
-  erase();
-
-  if (config.enable_line_numbers) {
-    ui.linenum_digits = std::to_string(buffer.content.size()).length();
-    ui.gutter_width = ui.linenum_digits + 4;
-  } else {
-    ui.linenum_digits = 0;
-    ui.gutter_width = 1;
-  }
-  ui.text_width = ui.cols - ui.gutter_width - 1;
-
-  ui.text_height = ui.lines - config.bottomline_height;
-
+void render_buffer() {
   int rend_line = 0;
 
   for (int i = editor.scr_offset; i < buffer.content.size() + ui.text_height && rend_line < ui.text_height; i++) {
@@ -520,7 +507,6 @@ void update_screen() {
       rend_line++;
     }
   }
-
   for (int i = 0; i < ui.cols; i++) {
     mvaddwstr(ui.lines - config.bottomline_height, i, L"─");
   }
@@ -533,14 +519,15 @@ void update_screen() {
       mvaddwstr(ui.lines - config.bottomline_height, ui.gutter_width - 2, L"┴");
     }
   }
-
-  if (editor.bottomline.empty()) {
+}
+void render_bottomline() {
+    if (editor.bottomline.empty()) {
     // TODO: turn this into a switch statement 
     if (editor.mode == NONE) {
       editor.bottomline = "          │ [O]pen file   [N]ew file   [Q]uit";
     } else if (editor.mode == NORMAL) {
-      editor.bottomline = " NORMAL   │ " + buffer.name;
-      // editor.bottomline = " NORMAL   │ " + buffer.name + "          " + std::to_string(editor.cur_line + 1) + ":" + std::to_string(editor.cur_char + 1);
+      // editor.bottomline = " NORMAL   │ " + buffer.name;
+      editor.bottomline = " NORMAL   │ " + buffer.name + "          " + std::to_string(editor.cur_line + 1) + ":" + std::to_string(editor.cur_char + 1);
     } else if (editor.mode == WRITE) {
       editor.bottomline = " WRITE    │ " + buffer.name;
     } else if (editor.mode == SELECT) {
@@ -579,7 +566,8 @@ void update_screen() {
   editor.bottomline += ' ';
 
   mvprintw(ui.lines - config.bottomline_height + 1, 0, "%s", editor.bottomline.c_str());
-
+}
+void render_cursor() {
   static CursorType last_cursor = HIDDEN;
   if (cursor.type != HIDDEN) {
     curs_set(1);
@@ -595,14 +583,36 @@ void update_screen() {
     last_cursor = HIDDEN;
   }
 
-  // this calculates cursor position
   cursor.row = 0;
   for (int i = editor.scr_offset; i < editor.cur_line; i++) {
     cursor.row += get_line_wraps(i);
   }
   cursor.row += editor.cur_char / ui.text_width;
   cursor.col = ui.gutter_width + (editor.cur_char % ui.text_width);
+
   move(cursor.row, cursor.col);
+}
+void update_screen() {
+  update_win_size();
+
+  erase();
+
+  if (config.enable_line_numbers) {
+    ui.linenum_digits = std::to_string(buffer.content.size()).length();
+    ui.gutter_width = ui.linenum_digits + 4;
+  } else {
+    ui.linenum_digits = 0;
+    ui.gutter_width = 1;
+  }
+  ui.text_width = ui.cols - ui.gutter_width - 1;
+  ui.text_height = ui.lines - config.bottomline_height;
+
+  render_buffer();
+
+  render_bottomline();
+
+  render_cursor();
+
   refresh();
 }
 
@@ -726,6 +736,17 @@ int main(int argc, char* argv[]) {
         else if (ch == KEY_RIGHT) move_right();
         else if (ch == KEY_HOME) editor.cur_char = 0;
         else if (ch == KEY_END) editor.cur_char = buffer.content[editor.cur_line].size();
+        else if (ch == 339) page_up();
+        else if (ch == 338) page_down();
+        else if (ch == 't') {
+          editor.cur_line = 0; editor.scr_offset = 0;
+          if (editor.cur_char > buffer.content[0].size() - 1) editor.cur_char = buffer.content[0].size();
+        }
+        else if (ch == 'b') {
+          editor.cur_line = buffer.content.size() - 1;
+          editor.scr_offset = (editor.cur_line >= ui.text_height) ? editor.cur_line - (ui.lines - 3) : 0;
+          if (editor.cur_char > buffer.content[editor.cur_line].size()) editor.cur_char = buffer.content[editor.cur_line].size();
+        }
 
         if (selection.type == 2) {
           if (editor.cur_line < selection.start_line) {
