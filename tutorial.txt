@@ -57,18 +57,21 @@ Now move your cursor down until the next section.
 
 
 
-
-
-
-
-
 Please read through the following information:
 
-You can save files by pressing [S].
-If you want to save the file with a different name, press [S-S].
-You can make new files with [S-N].
-You can quit Kaczynski by pressing [S-Q].
-You can open other files with [S-O].
+In NORMAL mode you can:
+- Save the current file by pressing [S].
+- Save the current file with a different name by pressing [S-S].
+- Make a new file with [S-N].
+- Quit Kaczynski by pressing [S-Q].
+
+You can also browse your file system by entering OPEN mode with
+[S-O]. OPEN mode is kind of similar to Emacs Dired, if you ever
+used it. With [enter] you can enter directories and open files.
+You can enter RENAME mode with [R], which allows you to rename
+directories and files. Pressing [D], [S-D], or [del] prompts
+you regarding your desire to delete the selected file or
+directory.
 
 If you are sure you have read through this part, please
 proceed to the next section about WRITE mode.
@@ -81,9 +84,9 @@ You can enter WRITE mode with [enter].
 In WRITE mode you can write things.
 By pressing [escape] you can go back to NORMAL mode.
 
-If you want, you can move to the lines marked with ">",
-and you can try to enter WRITE mode and write each of these
-sentences as fast as you can.
+If you want, you can move to the lines marked with ">", and you
+can try to enter WRITE mode and write each of these sentences
+as fast as you can.
 
   The quick brown fox jumps over the lazy dog.
 > 
@@ -127,14 +130,50 @@ By pressing [escape] you can go back to NORMAL mode.
 > but above THIS one.
 > Now move THIS line above the previous ones
 
-Proceed to the next section about SHELL mode.
+Proceed to the next section about FIND mode.
+
+
+
+
+
+You can enter FIND mode by pressing [F] in NORMAL mode.
+This will prompt you to input a pattern to match in the text
+buffer's contents. Pressing [enter] will move your cursor to
+the next instance of the text it matches.
+
+Pressing [escape] will forcefully clear the FIND query, and
+pressing [S-F] will allow you to initiate a new FIND mode
+search.
+
+Proceed to the next section about SHELL mode by searching
+for "SHELL mode".
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
 
 
 You can enter SHELL mode by pressing [$] in NORMAL mode.
-In SHELL mode you can type shell commands, then press enter,
+In SHELL mode you can type shell commands, then press [enter],
 which will insert the command's output at your cursor.
 
 Try it by running the "date" command at the ">".
@@ -159,4 +198,5 @@ Lines beginning with the "#" character are treated as comments.
 
 
 
-Currently this is the end of the tutorial.
+Currently this is the end of the tutorial. Have fun with your
+new favourite text editor.
