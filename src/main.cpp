@@ -298,15 +298,15 @@ void move_right() {
 void page_up() {
   if (editor.cur_line - ui.text_height < 0) { editor.cur_line = 0; editor.scr_offset = 0; }
   else { editor.cur_line -= (ui.lines - 3); editor.scr_offset = editor.cur_line; }
-  if (editor.cur_char > buffer.content[editor.cur_line].size()) editor.cur_char = buffer.content[editor.cur_line].size(); 
+  if (editor.cur_char > buffer.content[editor.cur_line].size()) editor.cur_char = buffer.content[editor.cur_line].size();
 }
 void page_down() {
-  if (editor.cur_line + ui.text_height >= buffer.content.size()) { 
-    editor.cur_line = buffer.content.size() - 1; 
+  if (editor.cur_line + ui.text_height >= buffer.content.size()) {
+    editor.cur_line = buffer.content.size() - 1;
     editor.scr_offset = (editor.cur_line >= ui.text_height) ? editor.cur_line - (ui.lines - 3) : 0;
-  } else { 
+  } else {
     editor.cur_line += ui.text_height + get_line_wraps(editor.cur_line) - 1 - 1;
-    editor.scr_offset = editor.cur_line - (ui.text_height - 1); 
+    editor.scr_offset = editor.cur_line - (ui.text_height - 1);
   }
   if (editor.cur_char > buffer.content[editor.cur_line].size()) editor.cur_char = buffer.content[editor.cur_line].size();
 }
@@ -407,22 +407,19 @@ void update_win_size() {
 void update_screen() {
   update_win_size();
 
-  clear();
+  erase();
 
   ui.linenum_digits = std::to_string(buffer.content.size()).length();
   ui.gutter_width = ui.linenum_digits + 4;
   ui.text_width = ui.cols - ui.gutter_width - 1;
-
   ui.text_height = ui.lines - ui.bottomline_height;
 
   int rend_line = 0;
-  int rend_char = 0;
+
 
   for (int i = editor.scr_offset; i < buffer.content.size() + ui.text_height && rend_line < ui.text_height; i++) {
     if (i < buffer.content.size()) {
-      // jank 2-3am code for selection rendering, ~5 cups of coffee were the only thing keeping me alive at that point, eventually passed out, solution to line wrapping was revealed to me in a dream, so this is also jank 6-7am code
       std::string &line = buffer.content[i];
-
       for (int start = 0; start < std::max(1, int(line.size())); start += ui.text_width) {
         if (rend_line >= ui.text_height) break;
 
@@ -445,79 +442,32 @@ void update_screen() {
   }
 
   mvhline(ui.lines - ui.bottomline_height, 0, '-', ui.cols);
-
-  if (editor.bottomline.empty()) {
-    // TODO: torn this into a switch statement 
-    if (editor.mode == NONE) {
-      editor.bottomline = "          | [O]pen file   [N]ew file   [Q]uit";
-    } else if (editor.mode == NORMAL) {
-      editor.bottomline = " NORMAL   | " + buffer.name;
-      // editor.bottomline = " NORMAL   | " + buffer.name + " | " + std::to_string(editor.cur_line) + ":" + std::to_string(editor.cur_char);
-    } else if (editor.mode == WRITE) {
-      editor.bottomline = " WRITE    | " + buffer.name;
-    } else if (editor.mode == SELECT) {
-      if (selection.start_line && selection.end_line && selection.start_char && selection.end_char) {
-        editor.bottomline = " SELECT   | " + std::to_string(selection.start_line) + ":" + std::to_string(selection.start_char) + " - " + std::to_string(selection.end_line) + ":" + std::to_string(selection.end_char);
-      } else {
-        editor.bottomline = " SELECT   | ";
-      }
-    } else if (editor.mode == MOVE) {
-      editor.bottomline = " MOVE     | " + buffer.name;
-    } else if (editor.mode == GOTO) {
-      editor.bottomline = " GO TO    | L" + editor.input;
-    } else if (editor.mode == SAVE) {
-      if (editor.input.empty()) {
-        editor.bottomline = " SAVE AS  | ...";  
-      } else {
-        editor.bottomline = " SAVE AS  | " + editor.input;
-      }
-    } else if (editor.mode == OPEN) {
-      if (editor.input.empty()) {
-        editor.bottomline = " OPEN     | ...";  
-      } else {
-        editor.bottomline = " OPEN     | " + editor.input;
-      }
-    } else if (editor.mode == NEW) {
-      if (editor.input.empty()) {
-        editor.bottomline = " NEW FILE | ...";  
-      } else {
-        editor.bottomline = " NEW FILE | " + editor.input;
-      }
-    } else if (editor.mode == SHELL) {
-      editor.bottomline = " SHELL    | $ " + editor.input;
-    }
-  }
-
-  editor.bottomline += ' ';
-
   mvprintw(ui.lines - ui.bottomline_height + 1, 0, "%s", editor.bottomline.c_str());
 
+  static CursorType last_cursor = HIDDEN;
   if (cursor.type != HIDDEN) {
     curs_set(1);
-    if (cursor.type == BLOCK) {
-      std::cout << "\033[2 q" << std::endl;
-    } else if (cursor.type == BAR) {
-      std::cout << "\033[5 q" << std::endl;
-    } else if (cursor.type == LINE) {
-      std::cout << "\033[3 q" << std::endl;
+    if (cursor.type != last_cursor) {
+      if (cursor.type == BLOCK) printf("\033[2 q");
+      else if (cursor.type == BAR) printf("\033[5 q");
+      else if (cursor.type == LINE) printf("\033[3 q");
+      fflush(stdout); 
+      last_cursor = cursor.type;
     }
   } else {
     curs_set(0);
+    last_cursor = HIDDEN;
   }
 
+  // this calculates cursor position
   cursor.row = 0;
-
   for (int i = editor.scr_offset; i < editor.cur_line; i++) {
-    int wraps = get_line_wraps(i);
-    cursor.row += wraps;
+    cursor.row += get_line_wraps(i);
   }
-
   cursor.row += editor.cur_char / ui.text_width;
-
   cursor.col = ui.gutter_width + (editor.cur_char % ui.text_width);
 
   move(cursor.row, cursor.col);
-
   refresh();
 }
 
@@ -560,7 +510,7 @@ int main(int argc, char* argv[]) {
     switch (editor.mode) {
       case NONE:
         if (ch == 27) goto end_loop;
-        else if (ch == 'O' || ch == 'o') set_mode(OPEN); 
+        else if (ch == 'O' || ch == 'o') set_mode(OPEN);
         else if (ch == 'N' || ch == 'n') set_mode(NEW);
         else if (ch == 'Q' || ch == 'q') goto end_loop;
         break;
@@ -585,15 +535,15 @@ int main(int argc, char* argv[]) {
         else if (ch == KEY_BACKSPACE || ch == 127 || ch == 263 || ch == '\b') move_left();
         else if (ch == 'D') del_line();
         else if (ch == 'x') set_mode(SELECT, 2);
-        else if (ch == 't') { 
-          editor.cur_line = 0; editor.scr_offset = 0; 
+        else if (ch == 't') {
+          editor.cur_line = 0; editor.scr_offset = 0;
           if (editor.cur_char > buffer.content[0].size() - 1) editor.cur_char = buffer.content[0].size();
-        } 
-        else if (ch == 'b') { 
+        }
+        else if (ch == 'b') {
           editor.cur_line = buffer.content.size() - 1;
           editor.scr_offset = (editor.cur_line >= ui.text_height) ? editor.cur_line - (ui.lines - 3) : 0;
           if (editor.cur_char > buffer.content[editor.cur_line].size()) editor.cur_char = buffer.content[editor.cur_line].size();
-        } 
+        }
         else if (ch == KEY_HOME) editor.cur_char = 0;
         else if (ch == KEY_END) editor.cur_char = buffer.content[editor.cur_line].size();
         else if (ch == 339) page_up();
@@ -644,7 +594,7 @@ int main(int argc, char* argv[]) {
             selection.start_char = 0;
           } else if (editor.cur_line > selection.end_line ){
             selection.end_line = editor.cur_line;
-            selection.end_char = buffer.content[editor.cur_char].size();        
+            selection.end_char = buffer.content[editor.cur_char].size();
           }
         }
         else if (selection.type == 1) {
@@ -701,7 +651,7 @@ int main(int argc, char* argv[]) {
         else if (ch == '\n') {
            if (!editor.input.empty()) {
              buffer.name = editor.input; editor.input.clear(); save(true); set_mode(NORMAL);
-           } else editor.bottomline = " SAVE AS  | Error: No filename. Please input a filename.";  
+           } else editor.bottomline = " SAVE AS  | Error: No filename. Please input a filename.";
         }
         else if (std::isprint(ch)) editor.input.push_back(ch);
         break;
@@ -711,7 +661,7 @@ int main(int argc, char* argv[]) {
         else if ((ch == KEY_BACKSPACE || ch == 127 || ch == 263 || ch == '\b') && !editor.input.empty()) editor.input.pop_back();
         else if (ch == '\n') {
            if (!editor.input.empty()) { open_file(editor.input); editor.input.clear(); }
-           else editor.bottomline = " OPEN     | Error: No filename. Please input a filename.";  
+           else editor.bottomline = " OPEN     | Error: No filename. Please input a filename.";
         }
         else if (std::isprint(ch)) editor.input.push_back(ch);
         break;
@@ -721,7 +671,7 @@ int main(int argc, char* argv[]) {
         else if ((ch == KEY_BACKSPACE || ch == 127 || ch == 263 || ch == '\b') && !editor.input.empty()) editor.input.pop_back();
         else if (ch == '\n') {
            if (!editor.input.empty()) { new_file(editor.input); editor.input.clear(); set_mode(NORMAL); }
-           else editor.bottomline = " NEW FILE | Error: No filename. Please input a filename.";  
+           else editor.bottomline = " NEW FILE | Error: No filename. Please input a filename.";
         }
         else if (std::isprint(ch)) editor.input.push_back(ch);
         break;
@@ -743,7 +693,7 @@ int main(int argc, char* argv[]) {
       editor.cur_char = buffer.content[editor.cur_line].size();
     }
 
-    update_screen();
+
   }
 
   end_loop:
