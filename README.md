@@ -26,7 +26,7 @@ git clone https://github.com/KozmunkasKalman/kaczynski-ted.git && cd kaczynski-t
 - [x] Write text in files
 - [x] Delete text in files
 - [x] Save files
-- [x] Open files
+- [x] Open files (like emacs dired)
 - [x] Visual selection of text
 - [ ] Move selected text around in move mode
 - [ ] Cut, copy, paste support for system clipboard
@@ -40,7 +40,7 @@ git clone https://github.com/KozmunkasKalman/kaczynski-ted.git && cd kaczynski-t
 - [ ] Scroll lock key functionality (locking screen in place)
 - [ ] Tabs (support for multiple simultaneously open buffers)
 - [x] Unicode support
-- [ ] Proper TUI menus (navigable by keyboard & mouse, for things like file opening and such)
+- [x] Proper TUI menus (navigable by keyboard & mouse, for things like file opening and such)
 - [ ] Syntax highlighting
 - [ ] Automatic line wrapping based on words
 - [x] Run shell commands within editor
