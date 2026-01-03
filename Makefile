@@ -24,7 +24,7 @@ pkg: $(TARGET)
 	@echo "Generating PKGBUILD..."
 	@echo "pkgname=kaczynski" > PKGBUILD
 	@echo "pkgver=$(VERSION)" >> PKGBUILD
-	@echo "pkgrel=v1" >> PKGBUILD
+	@echo "pkgrel=0.0.1-alpha1" >> PKGBUILD
 	@echo "pkgdesc=\"Pragmatic modal plaintext editor inspired by Vim, Nano, and such.\"" >> PKGBUILD
 	@echo "arch=('x86_64')" >> PKGBUILD
 	@echo "license=('Apache2')" >> PKGBUILD
@@ -38,7 +38,7 @@ rpm: $(TARGET)
 	@mkdir -p rpmbuild/{BUILD,RPMS,SOURCES,SPECS,SRPMS}
 	@echo "Name: kaczynski" > kaczynski.spec
 	@echo "Version: $(VERSION)" >> kaczynski.spec
-	@echo "Release: v1" >> kaczynski.spec
+	@echo "Release: 0.0.1-alpha1" >> kaczynski.spec
 	@echo "Summary: Pragmatic modal plaintext editor inspired by Vim, Nano, and such." >> kaczynski.spec
 	@echo "License: Apache2" >> kaczynski.spec
 	@echo "%description" >> kaczynski.spec

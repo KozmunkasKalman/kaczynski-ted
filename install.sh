@@ -8,6 +8,7 @@ helpmsg() {
 
 cfgfilemsg() {
   echo -ne "[ ] Moving the unabombrc to ~/.config/kaczynski/ (3/3)"
+  mkdir ~/.config/kaczynski/ -p
   cp unabombrc ~/.config/kaczynski/
   echo -ne "\r[\033[0;32m+\033[0m] Unabombrc copied successfully.               (3/3)\n"
   helpmsg
