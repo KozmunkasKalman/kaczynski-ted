@@ -34,7 +34,7 @@ git clone https://github.com/KozmunkasKalman/kaczynski-ted.git && cd kaczynski-t
 - [x] Home & End keys functionality
 - [x] Page up & Page down keys functionality
 - [x] Going to specified line
-- [ ] Searching for text (like vim /)
+- [x] Searching for patterns in text
 - [ ] Find & replace (sed style)
 - [x] Insert key functionality (overwriting text)
 - [ ] Scroll lock key functionality (locking screen in place)

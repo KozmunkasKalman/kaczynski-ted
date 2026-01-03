@@ -10,7 +10,7 @@
 
 
 
-enum Mode { NONE, NORMAL, WRITE, SELECT, MOVE, GOTO, SAVE, NEW, OPEN, RENAME, SHELL};
+enum Mode { NONE, NORMAL, WRITE, SELECT, MOVE, GOTO, FIND, SAVE, NEW, OPEN, RENAME, SHELL};
 enum CursorType { HIDDEN, BAR, LINE, BLOCK };
 enum BufferType { EMPTY, TEXT, FILEMANAGER };
 
@@ -70,6 +70,13 @@ struct {
 
   int text_height;
 } ui;
+
+struct {
+  std::string query;
+  int last_line;
+  int last_char;
+  std::string last_find;
+} search;
 
 struct {
   bool enable_line_numbers;
@@ -288,6 +295,11 @@ void set_mode(Mode target_mode, int submode = 0) {
       cursor.type = BLOCK;
       break;
 
+    case FIND:
+      editor.mode = FIND;
+      cursor.type = BLOCK;
+      break;
+
     case SAVE:
       editor.mode = SAVE;
       cursor.type = HIDDEN;
@@ -306,6 +318,7 @@ void set_mode(Mode target_mode, int submode = 0) {
 
     case RENAME:
       editor.mode = RENAME;
+      cursor.type = BLOCK;
       break;
 
     case SHELL:
@@ -541,6 +554,27 @@ void newline() {
   editor.cur_char = 0;
 }
 
+bool find_forward(std::string str) {
+  if (str.empty()) return false;
+
+  for (int i = editor.cur_line; i < buffer.content.size(); i++) {
+    int start = (i == editor.cur_line) ? editor.cur_char + 1 : 0;
+    int pos = buffer.content[i].find(str, start);
+
+    if (pos != std::string::npos) {
+      editor.cur_line = i;
+      editor.cur_char = pos;
+
+      if (editor.cur_line < editor.scr_offset) editor.scr_offset = editor.cur_line;
+      else if (editor.cur_line >= editor.scr_offset + ui.text_height) editor.scr_offset = editor.cur_line - ui.text_height + 1;
+
+      return true;
+    }
+  }
+  return false;
+}
+
+
 
 
 void update_win_size() {
@@ -630,6 +664,12 @@ void render_bottomline() {
       editor.bottomline = " MOVE     │ " + buffer.name;
     } else if (editor.mode == GOTO) {
       editor.bottomline = " GO TO    │ L" + editor.input;
+    } else if (editor.mode == FIND) {
+      if (editor.input.empty()) {
+        editor.bottomline = " FIND     │ \"...\"";
+      } else {
+        editor.bottomline = " FIND     │ \"" + editor.input + "\"";
+      }
     } else if (editor.mode == SAVE) {
       if (editor.input.empty()) {
         editor.bottomline = " SAVE AS  │ ...";  
@@ -771,10 +811,22 @@ int main(int argc, char* argv[]) {
         break;
 
       case NORMAL:
-        if (ch == '\n') set_mode(WRITE);
+        if (ch == 27) search.last_find = "";
+        else if (ch == '\n') set_mode(WRITE);
         else if (ch == 'v') set_mode(SELECT, 1);
         else if (ch == 'm') set_mode(MOVE);
         else if (ch == 'g') set_mode(GOTO);
+        else if (ch == 'F') set_mode(FIND);
+        else if (ch == 'f') {
+          if (!search.last_find.empty()) {
+            if (!find_forward(search.last_find)) {
+              editor.bottomline = " FIND     │ No further matches.";
+              search.last_find = "";
+            }
+          } else {
+            set_mode(FIND);
+          }
+        }
         else if (ch == '$') set_mode(SHELL);
         else if (ch == KEY_UP) move_up();
         else if (ch == KEY_DOWN) move_down();
@@ -838,6 +890,7 @@ int main(int argc, char* argv[]) {
           del_select();
           set_mode(NORMAL);
         }
+        // TODO: implement FIND for selected text as pattern
         else if (ch == KEY_UP) move_up();
         else if (ch == KEY_DOWN) move_down();
         else if (ch == KEY_LEFT) move_left();
@@ -924,6 +977,27 @@ int main(int argc, char* argv[]) {
            } else { editor.bottomline = " GO TO    │ Error: No line number inputted."; set_mode(NORMAL, 1); }
         }
         else if (std::isdigit(ch)) editor.input.push_back(ch);
+        break;
+
+      case FIND:
+        if (ch == 27) { editor.input.clear(); set_mode(NORMAL); }
+        else if ((ch == KEY_BACKSPACE || ch == 127 || ch == 263 || ch == '\b') && !editor.input.empty()) editor.input.pop_back();
+        else if (ch == '\n') {
+          if (!editor.input.empty()) {
+            search.last_find = editor.input;
+            if (!find_forward(search.last_find)) {
+              editor.bottomline = " FIND     │ Pattern not found.";
+              set_mode(NORMAL, 1);
+            } else {
+              set_mode(NORMAL);
+              editor.input.clear();
+            }
+          } else {
+            editor.bottomline = " FIND     │ Error: No pattern given to match.";
+            set_mode(NORMAL, 1);
+          }
+        }
+        else if (std::isprint(ch) || std::isspace(ch)) editor.input.push_back(ch);
         break;
 
       case SAVE:
