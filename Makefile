@@ -4,7 +4,7 @@
 
 CXX = g++
 CXXFLAGS = -std=c++23 -lncurses
-TARGET = bin/kcz
+TARGET = bin/kaczynski
 SRC = src/main.cpp
 
 all: $(TARGET)
