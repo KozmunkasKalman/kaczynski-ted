@@ -1,3 +1,4 @@
 line_numbers = true
+verbose_open = true
 bottomline_height = 2
 tab_size = 4

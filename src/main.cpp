@@ -83,6 +83,7 @@ struct {
 
 struct {
   bool enable_line_numbers;
+  bool verbose_open;
   int bottomline_height;
   int tab_size;
 } config;
@@ -96,10 +97,13 @@ bool file_exists(std::string path) {
 std::string get_config_path() {
   return std::string(std::getenv("HOME")) + "/.config/kaczynski/unabombrc";
 }
-bool to_bool(std::string v, bool def) {
+bool to_bool(std::string v) {
   if (v == "true"  || v == "1" || v == "yes" || v == "on" ) return true;
   if (v == "false" || v == "0" || v == "no"  || v == "off") return false;
-  return def;
+  else {
+    std::cerr << "Error: Invalid value in unabombrc.\n" + v + " is not valid for bool. Valid values: \"true\", \"false\", \"yes\", \"no\", \"on\", \"off\", \"1\", \"0\".";
+    exit(1);
+  }
 }
 std::string trim(std::string s) {
   int start = s.find_first_not_of(" \t");
@@ -125,7 +129,10 @@ void parse_config(std::string path) {
     std::string value = trim(line.substr(equals + 1));
 
     if (key == "line_numbers" || key == "enable_line_nums") {
-      config.enable_line_numbers = to_bool(value, config.enable_line_numbers);
+      config.enable_line_numbers = to_bool(value);
+    }
+    else if (key == "verbose_open") {
+      config.verbose_open = to_bool(value);
     }
     else if (key == "bottomline_height") {
       if (std::stoi(value) > 0) config.bottomline_height = std::stoi(value);
@@ -138,56 +145,13 @@ void parse_config(std::string path) {
 void load_config() {
   /* default values */
   config.enable_line_numbers = true;
+  config.verbose_open = true;
   config.bottomline_height = 2;
   config.tab_size = 4;
 
   if (get_config_path().empty() || !file_exists(get_config_path())) return;
 
   parse_config(get_config_path());
-}
-
-
-
-bool dirEntryComparator(DirEntry &a, DirEntry &b) {
-    if (a.name == "..") return true;
-    if (b.name == "..") return false;
-
-    if (a.is_dir != b.is_dir) return a.is_dir > b.is_dir;
-
-    std::string nameA = a.name;
-    std::string nameB = b.name;
-    std::transform(nameA.begin(), nameA.end(), nameA.begin(), ::tolower);
-    std::transform(nameB.begin(), nameB.end(), nameB.begin(), ::tolower);
-    return nameA < nameB;
-}
-
-void load_directory(std::string path) {
-  buffer.content.clear();
-  buffer.dir_content.clear();
-
-  editor.dir = path;
-
-  buffer.type = FILEMANAGER;
-  buffer.name = path;
-
-  if (path != "/") {
-    buffer.content.push_back("..");
-    buffer.dir_content.push_back({"..", true});
-  }
-
-  for (auto entry : std::filesystem::directory_iterator(path)) {
-    DirEntry d;
-    d.name = entry.path().filename().string();
-    d.is_dir = entry.is_directory();
-    buffer.dir_content.push_back(d);
-    buffer.content.push_back(d.name + (d.is_dir ? "/" : ""));
-  }
-
-  std::sort(buffer.dir_content.begin(), buffer.dir_content.end(), dirEntryComparator);
-
-  editor.cur_line = 0;
-  editor.cur_char = 0;
-  editor.scr_offset = 0;
 }
 
 
@@ -249,6 +213,52 @@ void insert_string(std::string cont_str) {
   editor.cur_line += str_vect.size() - 1;
   editor.cur_char = buffer.content[editor.cur_line].size() - tail.size();
 }
+
+
+
+bool dirEntryComparator(DirEntry &a, DirEntry &b) {
+    if (a.name == "..") return true;
+    if (b.name == "..") return false;
+
+    if (a.is_dir != b.is_dir) return a.is_dir > b.is_dir;
+
+    std::string nameA = a.name;
+    std::string nameB = b.name;
+    std::transform(nameA.begin(), nameA.end(), nameA.begin(), ::tolower);
+    std::transform(nameB.begin(), nameB.end(), nameB.begin(), ::tolower);
+    return nameA < nameB;
+}
+void load_directory(std::string path) {
+  buffer.content.clear();
+  buffer.dir_content.clear();
+
+  editor.dir = path;
+
+  buffer.type = FILEMANAGER;
+  buffer.name = path;
+
+  if (path != "/") {
+    buffer.content.push_back("..");
+    buffer.dir_content.push_back({"..", true});
+  }
+
+  for (auto entry : std::filesystem::directory_iterator(path)) {
+    DirEntry d;
+    d.name = entry.path().filename().string();
+    d.is_dir = entry.is_directory();
+    buffer.dir_content.push_back(d);
+    // TODO: add verbose output to it, which should look similar to the output of 'ls -Apho1 | tail -n +2'
+    buffer.content.push_back(d.name + (d.is_dir ? "/" : ""));
+  }
+
+  std::sort(buffer.dir_content.begin(), buffer.dir_content.end(), dirEntryComparator);
+
+  editor.cur_line = 0;
+  editor.cur_char = 0;
+  editor.scr_offset = 0;
+}
+
+
 
 void set_mode(Mode target_mode, int submode = 0) {
   switch (target_mode) {
@@ -317,6 +327,9 @@ void set_mode(Mode target_mode, int submode = 0) {
       editor.mode = OPEN;
       cursor.type = BLOCK;
       load_directory(editor.dir);
+      if (submode != 1) {
+        editor.bottomline = " OPEN     │ " + editor.dir + "/";
+      }
       break;
 
     case RENAME:
@@ -622,8 +635,7 @@ void render_buffer() {
 
         if (i == editor.cur_line) attron(A_REVERSE);
 
-        std::string label = entry.is_dir ? "/" : "";
-        label = entry.name + label;
+        std::string label = entry.name + (entry.is_dir ? "/" : "");
 
         mvprintw(rend_line, 1, "%s", label.c_str());
 
@@ -1010,7 +1022,11 @@ int main(int argc, char* argv[]) {
         else if (ch == '\n') {
            if (!editor.input.empty()) {
              if (file_exists(editor.input)) editor.bottomline = " SAVE AS  │ Warning: That file already exists: choose a different one, or remove it.";
-             else { buffer.name = editor.input; editor.input.clear(); save(true); set_mode(NORMAL); }
+             else {
+               buffer.name = editor.input;
+               editor.input.clear();
+               save(true);
+               set_mode(NORMAL); }
            } else editor.bottomline = " SAVE AS  │ Error: No filename. Please input a filename.";  
         }
         else if (std::isprint(ch)) editor.input.push_back(ch);
@@ -1018,18 +1034,33 @@ int main(int argc, char* argv[]) {
 
       case NEW:
         if (ch == 27) {
-          if (!buffer.name.empty()) {
+          if (buffer.type == TEXT) {
             set_mode(NORMAL);
+          } else if (buffer.type == FILEMANAGER) {
+            set_mode(OPEN);
           } else {
             goto end_loop;
           }
         }
         else if ((ch == KEY_BACKSPACE || ch == 127 || ch == 263 || ch == '\b') && !editor.input.empty()) editor.input.pop_back();
         else if (ch == '\n') {
-           if (!editor.input.empty()) {
-             if (file_exists(editor.input)) editor.bottomline = " NEW FILE │ Warning: File already exists."; 
-             else { buffer.name = editor.input; editor.input.clear(); save(true); set_mode(NORMAL); }
-           } else editor.bottomline = " NEW FILE │ Error: No filename. Please input a filename.";  
+          if (!editor.input.empty()) {
+            if (file_exists(editor.input)) editor.bottomline = " NEW FILE │ Warning: File already exists."; 
+            else {
+              if (buffer.type == TEXT) {
+                buffer.name = editor.input;
+                editor.input.clear();
+                save(true);
+                set_mode(NORMAL);
+              } else if (buffer.type == FILEMANAGER) {
+                std::string cmd = "touch " + editor.input;
+                run_shellcmd(cmd, false);
+                editor.input.clear();
+                update_screen();
+                set_mode(OPEN);
+              }
+            }
+          } else editor.bottomline = " NEW FILE │ Error: No filename. Please input a filename.";  
         }
         else if (std::isprint(ch)) editor.input.push_back(ch);
         break;
@@ -1062,10 +1093,10 @@ int main(int argc, char* argv[]) {
 
           std::string fullpath = editor.dir + "/" + entry.name;
 
-          editor.bottomline = " DELETE   │ Are you sure you want to delete " + entry.name + "? Press 'y' to delete.";
+          editor.bottomline = " DELETE   │ Are you sure you want to delete '" + entry.name + "'? Press [Y] [S-Y] or [enter] to delete.";
           update_screen();
           int confirm = getch();
-          if (confirm == 'y' || confirm == 'Y') {
+          if (confirm == 'Y' || confirm == 'y' || confirm == '\n') {
             if (delete_path(fullpath, entry.is_dir)) {
               editor.bottomline = " DELETE   │ Deleted: " + entry.name;
               load_directory(editor.dir);
@@ -1122,7 +1153,10 @@ int main(int argc, char* argv[]) {
         if (ch == 27) { editor.input.clear(); set_mode(NORMAL); }
         else if ((ch == KEY_BACKSPACE || ch == 127 || ch == 263 || ch == '\b') && !editor.input.empty()) editor.input.pop_back();
         else if (ch == '\n') {
-           std::string cmdout = run_shellcmd(editor.input, true); insert_string(cmdout); editor.input.clear(); set_mode(NORMAL);
+          std::string cmdout = run_shellcmd(editor.input, true);
+          insert_string(cmdout);
+          editor.input.clear();
+          set_mode(NORMAL);
         }
         else if (std::isprint(ch)) editor.input.push_back(ch);
         break;
