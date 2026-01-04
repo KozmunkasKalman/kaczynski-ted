@@ -39,7 +39,7 @@ git clone https://github.com/KozmunkasKalman/kaczynski-ted.git && cd kaczynski-t
 - [x] Insert key functionality (overwriting text)
 - [ ] Scroll lock key functionality (locking screen in place)
 - [ ] Tabs (support for multiple simultaneously open buffers)
-- [x] Unicode support
+- [ ] Unicode support
 - [x] Proper TUI menus (navigable by keyboard & mouse, for things like file opening and such)
 - [ ] Syntax highlighting
 - [ ] Automatic line wrapping based on words

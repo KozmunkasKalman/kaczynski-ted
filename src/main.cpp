@@ -5,6 +5,9 @@
 #include <string>
 #include <cctype>
 #include <cstdlib>
+#include <locale>
+#include <clocale>
+#include <cwchar>
 #include <filesystem>
 #include <ncurses.h>
 
@@ -769,6 +772,7 @@ int main(int argc, char* argv[]) {
   }
 
   setlocale(LC_ALL, "");
+  setlocale(LC_CTYPE, "");
 
   load_config();
 
