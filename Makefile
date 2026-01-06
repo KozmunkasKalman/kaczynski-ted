@@ -38,7 +38,7 @@ rpm: $(TARGET)
 	@mkdir -p rpmbuild/{BUILD,RPMS,SOURCES,SPECS,SRPMS}
 	@echo "Name: kcz" > kaczynski.spec
 	@echo "Version: $(VERSION)" >> kaczynski.spec
-	@echo "Release: 0.0.1-alpha1" >> kaczynski.spec
+	@echo "Release: 0.0.1.alpha1" >> kaczynski.spec
 	@echo "Summary: Pragmatic modal plaintext editor inspired by Vim, Nano, and such." >> kaczynski.spec
 	@echo "License: Apache2" >> kaczynski.spec
 	@echo "%description" >> kaczynski.spec
