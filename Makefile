@@ -24,7 +24,7 @@ pkg: $(TARGET)
 	@echo "Generating PKGBUILD..."
 	@echo "pkgname=kcz" > PKGBUILD
 	@echo "pkgver=$(VERSION)" >> PKGBUILD
-	@echo "pkgrel=0.0.1" >> PKGBUILD
+	@echo "pkgrel=1" >> PKGBUILD
 	@echo "pkgdesc=\"Pragmatic modal plaintext editor inspired by Vim, Nano, and such.\"" >> PKGBUILD
 	@echo "arch=('x86_64')" >> PKGBUILD
 	@echo "license=('Apache2')" >> PKGBUILD
