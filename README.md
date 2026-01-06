@@ -14,29 +14,46 @@ This by no means is supposed to be a replacement for Vim, and if it would be, th
 
 ### Installation:
 
-To install Kaczynski, run the following command:
+To install Kaczynski you have 2 options:
+
+1. Make a package:
+   Step 1:
+```bash
+git clone https://github.com/KozmunkasKalman/kaczynski-ted.git
+cd kaczynski-ted
+```
+   Step 2: 
+
+   - For Arch-based distros (such as Endeavour or Cachy) to get a .pkg.tar.xz file, you want to run:
+```bash
+make pkg
+```
+   - For RHEL-based distros (such as Fedora or ALT) to get an rpm package, you want to run:
+```bash
+make rpm
+```
+   Step 3:
+
+   Install using your package manager
+
+```bash
+sudo pacman -U arch-pkg/kcz.pkg.tar.xz
+```
+   or
+```bash
+sudo dnf install ./kcz
+```
+
+
+
+2. Install just the binary:
+   Step 1:
+   Run the following command:
 ```bash
 git clone https://github.com/KozmunkasKalman/kaczynski-ted.git && cd kaczynski-ted && chmod +x install.sh && bash ./install.sh
 ```
 
-or make a package(optional):
 
-```bash
-# Step 1:
-git clone https://github.com/KozmunkasKalman/kaczynski-ted.git
-cd kaczynski-ted
-
-# Step 2: 
-make pkg # for a .pkg.tar.xz (arch and derivatives)
-make rpm # for an rpm file (rpm based distros)
-
-# Step 3:
-# Install using your package manager
-
-sudo pacman -U arch-pkg/kcz.pkg.tar.xz
-# or 
-sudo dnf install ./kcz
-```
 
 
 
