@@ -19,6 +19,27 @@ To install Kaczynski, run the following command:
 git clone https://github.com/KozmunkasKalman/kaczynski-ted.git && cd kaczynski-ted && chmod +x install.sh && bash ./install.sh
 ```
 
+or make a package(optional):
+
+```bash
+# Step 1:
+git clone https://github.com/KozmunkasKalman/kaczynski-ted.git
+cd kaczynski-ted
+
+# Step 2: 
+make pkg # for a .pkg.tar.xz (arch and derivatives)
+make rpm # for an rpm file (rpm based distros)
+
+# Step 3:
+# Install using your package manager
+
+sudo pacman -U arch-pkg/kcz.pkg.tar.xz
+# or 
+sudo dnf install ./kcz
+```
+
+
+
 ### Targets:
 
 - [x] Installation script

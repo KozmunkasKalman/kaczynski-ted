@@ -22,7 +22,7 @@ PWD = $(shell pwd)
 pkg: $(TARGET)
 	@mkdir -p arch-pkg
 	@echo "Generating PKGBUILD..."
-	@echo "pkgname=kaczynski" > PKGBUILD
+	@echo "pkgname=kcz" > PKGBUILD
 	@echo "pkgver=$(VERSION)" >> PKGBUILD
 	@echo "pkgrel=0.0.1-alpha1" >> PKGBUILD
 	@echo "pkgdesc=\"Pragmatic modal plaintext editor inspired by Vim, Nano, and such.\"" >> PKGBUILD
@@ -36,7 +36,7 @@ pkg: $(TARGET)
 rpm: $(TARGET)
 	@echo "Generating RPM spec..."
 	@mkdir -p rpmbuild/{BUILD,RPMS,SOURCES,SPECS,SRPMS}
-	@echo "Name: kaczynski" > kaczynski.spec
+	@echo "Name: kcz" > kaczynski.spec
 	@echo "Version: $(VERSION)" >> kaczynski.spec
 	@echo "Release: 0.0.1-alpha1" >> kaczynski.spec
 	@echo "Summary: Pragmatic modal plaintext editor inspired by Vim, Nano, and such." >> kaczynski.spec
