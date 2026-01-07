@@ -2,10 +2,6 @@ Welcome to the Kaczynski tutorial.
 This is the tutorial for the Kaczynski text editor.
 This is somewhat similar to the Vim or Emacs tutorials.
 
-
-
-
-
 In the tutorial, the keybinds are marked with brackets [ ]
 Keybinds that require shift to be held are indicated like [S- ]
 Keybinds that require control to be held are indicated like [C- ]
@@ -17,19 +13,13 @@ Keybinds that require alt/meta to be held are indicated like [A- ]
 
 You can move your cursor with the arrow keys.
 
-This is because Vim's hjkl was chosen back when there were no
-separate arrow keys intended for movement, and instead the
-arrows were on H J K and L.
-If you want, you can rebind it to hjkl in the config later once
-implemented, until then please proceed with the tutorial.
+This is because Vim's hjkl was chosen back when there were no separate arrow keys intended for movement, and instead the arrows were on H J K and L.
+If you want, you can rebind it to hjkl in the config later once implemented, until then please proceed with the tutorial.
 
-You can move to the beginning of the line with [home], and the end
-of the line with [end]
-You can press [page up] to go one screen up, and [page down] to go
-one screen down.
+You can move to the beginning of the line with [home], and the end of the line with [end].
+You can press [page up] to go one screen up, and [page down] to go one screen down.
 
-[T] goes to the top of the buffer, [B] goes to the bottom of it,
-and [G] takes in an input number and goes to that on [enter].
+[T] goes to the top of the buffer, [B] goes to the bottom of it, and [G] takes in an input number and goes to that on [enter].
 
 Now move your cursor down until the next section.
 
@@ -65,16 +55,11 @@ In NORMAL mode you can:
 - Make a new file with [S-N].
 - Quit Kaczynski by pressing [S-Q].
 
-You can also browse your file system by entering OPEN mode with
-[S-O]. OPEN mode is kind of similar to Emacs Dired, if you ever
-used it. With [enter] you can enter directories and open files.
-You can enter RENAME mode with [R], which allows you to rename
-directories and files. Pressing [D], [S-D], or [del] prompts
-you regarding your desire to delete the selected file or
+You can also browse your file system by entering OPEN mode with [S-O]. OPEN mode is kind of similar to Emacs Dired, if you ever used it. With [enter] you can enter directories and open files.
+You can enter RENAME mode with [R], which allows you to rename directories and files. Pressing [D], [S-D], or [del] prompts you regarding your desire to delete the selected file or
 directory.
 
-If you are sure you have read through this part, please
-proceed to the next section about WRITE mode.
+If you are sure you have read through this part, please proceed to the next section about WRITE mode.
 
 
 
@@ -84,9 +69,7 @@ You can enter WRITE mode with [enter].
 In WRITE mode you can write things.
 By pressing [escape] you can go back to NORMAL mode.
 
-If you want, you can move to the lines marked with ">", and you
-can try to enter WRITE mode and write each of these sentences
-as fast as you can.
+If you want, you can move to the lines marked with ">", and you can try to enter WRITE mode and write each of these sentences as fast as you can.
 
   The quick brown fox jumps over the lazy dog.
 > 
@@ -101,18 +84,16 @@ Proceed to the next section about SELECT mode.
 
 Select characters with [V], or select whole lines with [X].
 
-In SELECT mode pressing [S-D], [D], backspace or delete will
-delete the selected text.
+In SELECT mode pressing [S-D], [D], [backspace] or [delete] will delete the selected text.
 
 By pressing [escape] you can go back to NORMAL mode.
 
-Try to select the (((texts))) marked with ">" in and delete it
+Try to select the (((texts))) marked with ">" in and delete it.
 
 > Delete (((this text))) right here.
 > And (((this))) too.
 > (((Delete))) the (((parentheses))) here (((this))) too.
-> Now [X] to select this line, move up until the first ">" is
-selected, and delete it.
+> Now [X] to select this line, move up until the first ">" is selected, and delete it.
 
 Proceed to the next section about MOVE mode.
 
@@ -121,8 +102,7 @@ Proceed to the next section about MOVE mode.
 
 
 You can enter MOVE mode by pressing [M] in NORMAL mode.
-In MOVE mode you can press up and down to move the current
-line up or down.
+In MOVE mode you can press up and down to move the current line up or down.
 By pressing [escape] you can go back to NORMAL mode.
 
 > Try moving THIS line
@@ -137,16 +117,11 @@ Proceed to the next section about FIND mode.
 
 
 You can enter FIND mode by pressing [F] in NORMAL mode.
-This will prompt you to input a pattern to match in the text
-buffer's contents. Pressing [enter] will move your cursor to
-the next instance of the text it matches.
+This will prompt you to input a pattern to match in the text buffer's contents. Pressing [enter] will move your cursor to the next instance of the text it matches.
 
-Pressing [escape] will forcefully clear the FIND query, and
-pressing [S-F] will allow you to initiate a new FIND mode
-search.
+Pressing [escape] will forcefully clear the FIND query, and pressing [S-F] will allow you to initiate a new FIND mode search.
 
-Proceed to the next section about SHELL mode by searching
-for "SHELL mode".
+Proceed to the next section about SHELL mode by searching for "SHELL mode".
 
 
 
@@ -173,8 +148,7 @@ for "SHELL mode".
 
 
 You can enter SHELL mode by pressing [$] in NORMAL mode.
-In SHELL mode you can type shell commands, then press [enter],
-which will insert the command's output at your cursor.
+In SHELL mode you can type shell commands, then press [enter], which will insert the command's output at your cursor.
 
 Try it by running the "date" command at the ">".
 > 
@@ -187,10 +161,8 @@ Proceed to the next section about the configuration.
 
 
 
-The Kaczynski configuration "unabombrc" file is located in
-"~/.config/kaczynski/unabombrc"
-If you did the installation process, the template one should
-already be there.
+The Kaczynski configuration "unabombrc" file is located in "~/.config/kaczynski/unabombrc".
+If you did the installation process with the "install.sh" script, the template one should already be there.
 This file consists of key-value pairs per line.
 Lines beginning with the "#" character are treated as comments.
 
@@ -198,5 +170,4 @@ Lines beginning with the "#" character are treated as comments.
 
 
 
-Currently this is the end of the tutorial. Have fun with your
-new favourite text editor.
+Currently this is the end of the tutorial. Have fun with your new favourite text editor.

@@ -454,6 +454,20 @@ void move_right() {
     editor.cur_char = buffer.content[editor.cur_line].size();
   }
 }
+void buffer_top() {
+  editor.cur_line = 0;
+  editor.scr_offset = 0;
+  if (editor.cur_char > buffer.content[0].size() - 1) {
+    editor.cur_char = buffer.content[0].size();
+  }
+}
+void buffer_bottom() {
+  editor.cur_line = buffer.content.size() - 1;
+  editor.scr_offset = (editor.cur_line >= ui.text_height) ? editor.cur_line - (ui.lines - 3 - get_line_wraps(editor.cur_line)) : 0;
+  if (editor.cur_char > buffer.content[editor.cur_line].size()) {
+    editor.cur_char = buffer.content[editor.cur_line].size();
+  }
+}
 void page_up() {
   if (editor.cur_line - ui.text_height < 0) { editor.cur_line = 0; editor.scr_offset = 0; }
   else { editor.cur_line -= (ui.lines - 3); editor.scr_offset = editor.cur_line; }
@@ -462,7 +476,7 @@ void page_up() {
 void page_down() {
   if (editor.cur_line + ui.text_height >= buffer.content.size()) { 
     editor.cur_line = buffer.content.size() - 1; 
-    editor.scr_offset = (editor.cur_line >= ui.text_height) ? editor.cur_line - (ui.lines - 3) : 0;
+    editor.scr_offset = (editor.cur_line >= ui.text_height) ? editor.cur_line - (ui.lines - 3 - get_line_wraps(editor.cur_line)) : 0;
   } else { 
     editor.cur_line += ui.text_height + get_line_wraps(editor.cur_line) - 1 - 1;
     editor.scr_offset = editor.cur_line - (ui.text_height - 1); 
@@ -550,7 +564,7 @@ void del_select() {
 
     selection.type = 0;
 }
-bool delete_path(std::string path, bool is_dir) {
+bool del_path(std::string path, bool is_dir) {
   std::error_code ec;
 
   if (is_dir) {
@@ -731,6 +745,7 @@ void render_cursor() {
     cursor.row += get_line_wraps(i);
   }
   cursor.row += editor.cur_char / ui.text_width;
+
   cursor.col = ui.gutter_width + (editor.cur_char % ui.text_width);
 
   move(cursor.row, cursor.col);
@@ -812,7 +827,8 @@ int main(int argc, char* argv[]) {
   while (true) {
     update_screen();
 
-    int ch = getch();
+    wint_t ch;
+    get_wch(&ch);
 
     if (ch) {
       editor.bottomline = "";
@@ -859,15 +875,8 @@ int main(int argc, char* argv[]) {
         else if (ch == 'd' || ch == KEY_DC || ch == 330) del_char(0);
         else if (ch == 'D') del_line();
         else if (ch == 'x') set_mode(SELECT, 2);
-        else if (ch == 't') {
-          editor.cur_line = 0; editor.scr_offset = 0;
-          if (editor.cur_char > buffer.content[0].size() - 1) editor.cur_char = buffer.content[0].size();
-        }
-        else if (ch == 'b') {
-          editor.cur_line = buffer.content.size() - 1;
-          editor.scr_offset = (editor.cur_line >= ui.text_height) ? editor.cur_line - (ui.lines - 3) : 0;
-          if (editor.cur_char > buffer.content[editor.cur_line].size()) editor.cur_char = buffer.content[editor.cur_line].size();
-        }
+        else if (ch == 't') buffer_top();
+        else if (ch == 'b') buffer_bottom();
         else if (ch == KEY_HOME) editor.cur_char = 0;
         else if (ch == KEY_END) editor.cur_char = buffer.content[editor.cur_line].size();
         else if (ch == 339) page_up();
@@ -892,7 +901,7 @@ int main(int argc, char* argv[]) {
         else if (ch == 339) page_up();
         else if (ch == 338) page_down();
         else if (ch == '\t') { for (int i = 0; i < config.tab_size; i++) { insert_string(" "); } }
-        else if (std::isprint(ch) || std::isspace(ch)) {
+        else if (std::iswprint(ch) || std::iswspace(ch)) {
           if (editor.insert) del_char(0); // kind of a workaround tbh but it works
           buffer.content[editor.cur_line].insert(editor.cur_char, 1, ch);
           editor.cur_char++;
@@ -915,16 +924,8 @@ int main(int argc, char* argv[]) {
         else if (ch == KEY_END) editor.cur_char = buffer.content[editor.cur_line].size();
         else if (ch == 339) page_up();
         else if (ch == 338) page_down();
-        else if (ch == 't') {
-          editor.cur_line = 0; editor.scr_offset = 0;
-          if (editor.cur_char > buffer.content[0].size() - 1) editor.cur_char = buffer.content[0].size();
-        }
-        else if (ch == 'b') {
-          editor.cur_line = buffer.content.size() - 1;
-          editor.scr_offset = (editor.cur_line >= ui.text_height) ? editor.cur_line - (ui.lines - 3) : 0;
-          if (editor.cur_char > buffer.content[editor.cur_line].size()) editor.cur_char = buffer.content[editor.cur_line].size();
-        }
-
+        else if (ch == 't') buffer_top();
+        else if (ch == 'b') buffer_bottom();
         if (selection.type == 2) {
           if (editor.cur_line < selection.start_line) {
             selection.start_line = editor.cur_line;
@@ -952,30 +953,19 @@ int main(int argc, char* argv[]) {
         else if (ch == KEY_DOWN && editor.cur_line < buffer.content.size() - 1) {
           std::swap(buffer.content[editor.cur_line], buffer.content[editor.cur_line + 1]); move_down();
         }
-        else if (ch == 't') {
-          std::swap(buffer.content[editor.cur_line], buffer.content[0]); editor.cur_line = 0; editor.scr_offset = 0;
-          if (editor.cur_char > buffer.content[0].size() - 1) editor.cur_char = buffer.content[0].size();
-        }
-        else if (ch == 'b') {
-          std::swap(buffer.content[editor.cur_line], buffer.content.back());
-          editor.cur_line = buffer.content.size() - 1;
-          editor.scr_offset = (editor.cur_line >= ui.text_height) ? editor.cur_line - (ui.lines - 3) : 0;
-          if (editor.cur_char > buffer.content[editor.cur_line].size()) editor.cur_char = buffer.content[editor.cur_line].size();
-        }
+        else if (ch == 't') buffer_top();
+        else if (ch == 'b') buffer_bottom();
         break;
 
       case GOTO:
         if (ch == 27) { editor.input.clear(); set_mode(NORMAL); }
         else if (editor.input.empty() && ch == 't') { 
-          editor.cur_line = 0; editor.scr_offset = 0; 
-          if (editor.cur_char > buffer.content[0].size() - 1) editor.cur_char = buffer.content[0].size();
+          buffer_top();
           editor.input.clear();
           set_mode(NORMAL); 
         } 
         else if (editor.input.empty() && ch == 'b') { 
-          editor.cur_line = buffer.content.size() - 1;
-          editor.scr_offset = (editor.cur_line >= ui.text_height) ? editor.cur_line - (ui.lines - 3) : 0;
-          if (editor.cur_char > buffer.content[editor.cur_line].size()) editor.cur_char = buffer.content[editor.cur_line].size();
+          buffer_bottom();
           editor.input.clear();
           set_mode(NORMAL); 
         } 
@@ -1058,6 +1048,12 @@ int main(int argc, char* argv[]) {
                 editor.input.clear();
                 update_screen();
                 set_mode(OPEN);
+              } else if (buffer.type == EMPTY) {
+                buffer.type = TEXT;
+                buffer.name = editor.input;
+                editor.input.clear();
+                save(true);
+                set_mode(NORMAL);
               }
             }
           } else editor.bottomline = " NEW FILE │ Error: No filename. Please input a filename.";  
@@ -1069,15 +1065,8 @@ int main(int argc, char* argv[]) {
         if (ch == 'Q' || ch == 'q') goto end_loop;
         else if (ch == KEY_UP && editor.cur_line > 0) move_up();
         else if (ch == KEY_DOWN && editor.cur_line < buffer.dir_content.size() - 1) move_down();
-        else if (ch == 't' || ch == KEY_HOME) {
-          editor.cur_line = 0; editor.scr_offset = 0;
-          if (editor.cur_char > buffer.content[0].size() - 1) editor.cur_char = buffer.content[0].size();
-        }
-        else if (ch == 'b' || ch == KEY_END) {
-          editor.cur_line = buffer.content.size() - 1;
-          editor.scr_offset = (editor.cur_line >= ui.text_height) ? editor.cur_line - (ui.lines - 3) : 0;
-          if (editor.cur_char > buffer.content[editor.cur_line].size()) editor.cur_char = buffer.content[editor.cur_line].size();
-        }
+        else if (ch == 't' || ch == KEY_HOME) buffer_top();
+        else if (ch == 'b' || ch == KEY_END) buffer_bottom();
         else if (ch == 339) page_up();
         else if (ch == 338) page_down();
         else if (ch == 'N' || ch == 'n') set_mode(NEW);
@@ -1097,7 +1086,7 @@ int main(int argc, char* argv[]) {
           update_screen();
           int confirm = getch();
           if (confirm == 'Y' || confirm == 'y' || confirm == '\n') {
-            if (delete_path(fullpath, entry.is_dir)) {
+            if (del_path(fullpath, entry.is_dir)) {
               editor.bottomline = " DELETE   │ Deleted: " + entry.name;
               load_directory(editor.dir);
 
