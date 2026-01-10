@@ -1,7 +1,5 @@
 #!/bin/bash
 
-set -e
-
 helpmsg() {
   echo -ne "Please run \"$ kcz tutorial.txt\" to open the text editor's tutorial.\n"
 }
@@ -23,7 +21,8 @@ install_bin() {
     cfgfile
   else
     tput cuu 2
-    echo -ne "\r[\033[0;31m-\033[0m] Kaczynski-TED installation failed.            \n"
+    echo -ne "\r[\033[0;31m-\033[0m] Kaczynski-TED installation failed.                \n"
+    echo -ne "    Please make sure /usr/bin/kcz is not in use and that you have the neccessary permissions.\n"
   fi
 }
 
@@ -34,7 +33,7 @@ build() {
     echo -ne "\r[\033[0;32m+\033[0m] Kaczynski-TED built successfully.            (1/3)\n"
     install_bin
   else
-    echo -ne "\r[\033[0;31m-\033[0m] Kaczynski-TED build failed.                   \n"
+    echo -ne "\r[\033[0;31m-\033[0m] Kaczynski-TED build failed.                       \n"
   fi
 }
 

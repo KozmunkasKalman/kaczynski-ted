@@ -16,6 +16,7 @@
 enum Mode { NONE, NORMAL, WRITE, SELECT, MOVE, GOTO, FIND, SAVE, NEW, OPEN, RENAME, SHELL};
 enum CursorType { HIDDEN, BAR, LINE, BLOCK };
 enum BufferType { EMPTY, TEXT, FILEMANAGER };
+// TODO: add terminal emulator mode
 
 struct DirEntry { std::string name; bool is_dir; };
 
@@ -29,6 +30,7 @@ struct {
   int scr_offset; // screen offset compared to editor.cur_line
 
   std::string bottomline;
+  std::string bottomline_right;
   std::string input;
 
   bool insert;
@@ -86,6 +88,8 @@ struct {
   bool verbose_open;
   int bottomline_height;
   int tab_size;
+
+  // TODO: implement custom binds
 } config;
 
 
@@ -384,6 +388,13 @@ int get_line_wraps(int line) {
   if (line < 0 || line >= buffer.content.size()) return 1;
   return std::max(1, (int(buffer.content[line].size()) + ui.text_width - 1) / ui.text_width);
 }
+int vis_lines_between(int line1, int line2) {
+  int vis_lines = 0;
+  for (int i = line1; i < line2; i++) {
+    vis_lines += get_line_wraps(i);
+  }
+  return vis_lines;
+}
 
 void move_up() {
   if (editor.cur_line > 0 && buffer.content[editor.cur_line].size() > ui.text_width && editor.cur_char - ui.text_width < buffer.content[editor.cur_line].size()){
@@ -405,7 +416,7 @@ void move_up() {
   }
 }
 void move_down() {
-    if (editor.cur_line < buffer.content.size() - 1 && buffer.content[editor.cur_line].size() > ui.text_width && editor.cur_char + ui.text_width < buffer.content[editor.cur_line].size()) {
+    if (editor.cur_line < buffer.content.size() && buffer.content[editor.cur_line].size() > ui.text_width && editor.cur_char + ui.text_width < buffer.content[editor.cur_line].size()) {
     editor.cur_char += ui.text_width;
   } else if (editor.cur_line < buffer.content.size() - 1) {
     if (editor.cur_char / ui.text_width + 1 < get_line_wraps(editor.cur_line)) {
@@ -464,24 +475,121 @@ void buffer_top() {
 void buffer_bottom() {
   editor.cur_line = buffer.content.size() - 1;
   editor.scr_offset = (editor.cur_line >= ui.text_height) ? editor.cur_line - (ui.lines - 3 - get_line_wraps(editor.cur_line)) : 0;
+  if (buffer.content[editor.cur_line].size() > ui.text_width) {
+    editor.scr_offset += int(buffer.content[editor.cur_line].size() / ui.text_width);
+  }
   if (editor.cur_char > buffer.content[editor.cur_line].size()) {
     editor.cur_char = buffer.content[editor.cur_line].size();
   }
 }
 void page_up() {
-  if (editor.cur_line - ui.text_height < 0) { editor.cur_line = 0; editor.scr_offset = 0; }
-  else { editor.cur_line -= (ui.lines - 3); editor.scr_offset = editor.cur_line; }
-  if (editor.cur_char > buffer.content[editor.cur_line].size()) editor.cur_char = buffer.content[editor.cur_line].size();
+  // very messy, TODO: optimize and refactor
+  switch (buffer.type) {
+    case TEXT: {
+      if (editor.cur_line <= 0) {
+        buffer_top();
+        break;
+      }
+      int target = editor.cur_line;
+
+      int vis_lines = 0;
+      for (int i = editor.cur_line; i > editor.cur_line - ui.text_height + 1; i--) {
+        vis_lines += get_line_wraps(i);
+        target -= 1;
+        if (vis_lines >= ui.text_height - 1) {
+          break;
+        }
+      }
+      if (target <= 0) target = 0;
+
+      editor.cur_line = target;
+      editor.scr_offset = target;
+
+      if (editor.cur_char > buffer.content[editor.cur_line].size()) {
+        editor.cur_char = buffer.content[editor.cur_line].size();
+      }
+
+      break;
+    }
+    case FILEMANAGER: {
+      if (buffer.content.size() <= ui.text_height) {
+        editor.cur_line = 0;
+        editor.scr_offset = 0;
+      } else if (editor.cur_line - ui.text_height - 1 < editor.scr_offset + ui.text_height) {
+        editor.cur_line += ui.text_height - 1;
+      } else if (editor.cur_line + ui.text_height - 1 >= buffer.content.size()) {
+        editor.cur_line = buffer.content.size() - 1;
+        editor.scr_offset = buffer.content.size() - ui.text_height;
+      } else {
+        editor.cur_line += ui.text_height - 1;
+        editor.scr_offset += ui.text_height - 1;
+      }
+      break;
+    }
+  }
 }
 void page_down() {
-  if (editor.cur_line + ui.text_height >= buffer.content.size()) { 
-    editor.cur_line = buffer.content.size() - 1; 
-    editor.scr_offset = (editor.cur_line >= ui.text_height) ? editor.cur_line - (ui.lines - 3 - get_line_wraps(editor.cur_line)) : 0;
-  } else { 
-    editor.cur_line += ui.text_height + get_line_wraps(editor.cur_line) - 1 - 1;
-    editor.scr_offset = editor.cur_line - (ui.text_height - 1); 
+  // very messy, TODO: optimize and refactor
+  switch (buffer.type) {
+    case TEXT: {
+      if (editor.cur_line >= buffer.content.size()) {
+        buffer_bottom();
+        break;
+      }
+      int target = editor.cur_line;
+
+      int vis_lines = 0;
+      for (int i = editor.cur_line; i < editor.cur_line + ui.text_height - 1; i++) {
+        vis_lines += get_line_wraps(i);
+        target += 1;
+        if (vis_lines >= ui.text_height - 1) {
+          break;
+        }
+      }
+      if (target >= buffer.content.size() - 1) target = buffer.content.size() - 1;
+
+      int scr_offset_target = target;
+
+      vis_lines = 0;
+      for (int j = target; j > target - ui.text_height - 1; j--) {
+        vis_lines += get_line_wraps(j);
+        scr_offset_target -= 1;
+        if (vis_lines >= ui.text_height - 1) {
+          break;
+        }
+      }
+
+      editor.cur_line = target;
+      editor.scr_offset = scr_offset_target;
+
+      if (buffer.content[editor.cur_line].size() > ui.text_width) {
+        editor.scr_offset += int(buffer.content[editor.cur_line].size() / ui.text_width);
+        // this doesnt work properly, commented out until fixed
+        // editor.scr_offset -= vis_lines_between(editor.scr_offset, editor.cur_line) - (editor.cur_line - editor.scr_offset);
+      }
+
+      if (editor.cur_char > buffer.content[editor.cur_line].size()) {
+        editor.cur_char = buffer.content[editor.cur_line].size();
+      }
+
+      break;
+    }
+    case FILEMANAGER: {
+      if (buffer.content.size() <= ui.text_height) {
+        editor.cur_line = buffer.content.size() - 1;
+        editor.scr_offset = 0;
+      } else if (editor.cur_line + ui.text_height - 1 < editor.scr_offset + ui.text_height) {
+        editor.cur_line += ui.text_height - 1;
+      } else if (editor.cur_line + ui.text_height - 1 >= buffer.content.size()) {
+        editor.cur_line = buffer.content.size() - 1;
+        editor.scr_offset = buffer.content.size() - ui.text_height;
+      } else {
+        editor.cur_line += ui.text_height - 1;
+        editor.scr_offset += ui.text_height - 1;
+      }
+      break;
+    }
   }
-  if (editor.cur_char > buffer.content[editor.cur_line].size()) editor.cur_char = buffer.content[editor.cur_line].size();
 }
 
 void normalize_selection() {
@@ -680,7 +788,6 @@ void render_bottomline() {
       editor.bottomline = "          │ [O]pen file   [N]ew file   [Q]uit";
     } else if (editor.mode == NORMAL) {
       editor.bottomline = " NORMAL   │ " + buffer.name;
-      // editor.bottomline = " NORMAL   │ " + buffer.name + "          " + std::to_string(editor.cur_line + 1) + ":" + std::to_string(editor.cur_char + 1);
     } else if (editor.mode == WRITE) {
       editor.bottomline = " WRITE    │ " + buffer.name;
     } else if (editor.mode == SELECT) {
@@ -723,6 +830,14 @@ void render_bottomline() {
   editor.bottomline += ' ';
 
   mvprintw(ui.lines - config.bottomline_height + 1, 0, "%s", editor.bottomline.c_str());
+
+  if (buffer.type == TEXT || buffer.type == FILEMANAGER) {
+    editor.bottomline_right = std::to_string(editor.cur_line + 1) + ":" + std::to_string(editor.cur_char + 1) + ", " + std::to_string(editor.scr_offset);
+    mvprintw(ui.lines - config.bottomline_height + 1, ui.cols - (editor.bottomline_right.size() + 3), "│ %s ", editor.bottomline_right.c_str());
+    mvaddwstr(ui.lines - config.bottomline_height, ui.cols - (editor.bottomline_right.size() + 3), L"┬");   
+  }
+
+
 }
 void render_cursor() {
   static CursorType last_cursor = HIDDEN;
