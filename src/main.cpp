@@ -728,8 +728,15 @@ void update_win_size() {
 void render_menubar() {
   if (config.menubar) {
 
-    // TODO: make it have different text based on mode 
-    editor.menubar = " [S]ave   [S-S]ave as   [S-N]ew   [S-O]pen   [$]hell   [S-Q]uit ";
+    if (editor.mode == NONE) {
+      editor.menubar = " [N]ew   [O]pen   [Q]uit ";
+    } else if (editor.mode == NORMAL) {
+      editor.menubar = " [S]ave   [S-S]ave as   [S-N]ew   [S-O]pen   [$]hell   [S-Q]uit ";
+    } else if (editor.mode == OPEN) {
+      editor.menubar = " [N]ew   [R]ename   [D]elete   [Q]uit ";
+    } else {
+      editor.menubar = " ";
+    }
     // using box drawing vertical lines fucks with the padding of the %*, and it wont extend to the edge of the screen with that, and since pipes are ugly im just gonna space them out
 
     attron(A_REVERSE);
@@ -802,9 +809,13 @@ void render_bottomline() {
   }
 
   if (editor.bottomline.empty()) {
-    // TODO: turn this into a switch statement 
+    // could turn this into a switch statement, although this is one of the cases where a switch statement would result in more code
     if (editor.mode == NONE) {
-      editor.bottomline = "          │ [O]pen file   [N]ew file   [Q]uit";
+      if (config.menubar) {
+        editor.bottomline = "          │ ";
+      } else {
+        editor.bottomline = "          │ [O]pen file   [N]ew file   [Q]uit";
+      }
     } else if (editor.mode == NORMAL) {
       editor.bottomline = " NORMAL   │ " + buffer.name;
     } else if (editor.mode == WRITE) {
