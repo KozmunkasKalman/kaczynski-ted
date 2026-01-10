@@ -13,11 +13,24 @@
 
 
 
-// TODO: add mouse support (clicking in text moves cursor, opens folder in file manager, menubar stuff, etcv)
+// TODO: utf-8 unicode support
+// TODO: fix SELECT mode
+// TODO: get MOVE mode working with selection and stuff
+// TODO: system clipboard support with cut, copy, and paste
+// TODO: implement undo and redo
+// TODO: add sed-style find & replace thing
+// TODO: implement custom binds
+// TODO: implement option for verbose output to OPEN mode, which should look similar to the output of 'ls -Apho1'
+// TODO: add support for multiple simultaneous buffers
+// TODO: add a terminal emulator mode
+// TODO: implement mouse support (clicking in text moves cursor, opens folder in file manager, menubar stuff, etcv)
+// TODO: optimize and refactor whatever can be
+
+
+
 enum Mode { NONE, NORMAL, WRITE, SELECT, MOVE, GOTO, FIND, SAVE, NEW, OPEN, RENAME, SHELL};
 enum CursorType { HIDDEN, BAR, LINE, BLOCK };
 enum BufferType { EMPTY, TEXT, FILEMANAGER };
-// TODO: add terminal emulator mode
 
 struct DirEntry { std::string name; bool is_dir; };
 
@@ -91,8 +104,6 @@ struct {
   bool menubar;
   int bottomline_height;
   int tab_size;
-
-  // TODO: implement custom binds
 } config;
 
 
