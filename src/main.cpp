@@ -13,6 +13,7 @@
 
 
 
+// TODO: add mouse support (clicking in text moves cursor, opens folder in file manager, menubar stuff, etcv)
 enum Mode { NONE, NORMAL, WRITE, SELECT, MOVE, GOTO, FIND, SAVE, NEW, OPEN, RENAME, SHELL};
 enum CursorType { HIDDEN, BAR, LINE, BLOCK };
 enum BufferType { EMPTY, TEXT, FILEMANAGER };
@@ -32,6 +33,7 @@ struct {
   std::string bottomline;
   std::string bottomline_right;
   std::string input;
+  std::string menubar;
 
   bool insert;
   bool scrlock;
@@ -84,8 +86,9 @@ struct {
 } search;
 
 struct {
-  bool enable_line_numbers;
+  bool line_numbers;
   bool verbose_open;
+  bool menubar;
   int bottomline_height;
   int tab_size;
 
@@ -132,11 +135,14 @@ void parse_config(std::string path) {
     std::string key = trim(line.substr(0, equals));
     std::string value = trim(line.substr(equals + 1));
 
-    if (key == "line_numbers" || key == "enable_line_nums") {
-      config.enable_line_numbers = to_bool(value);
+    if (key == "line_numbers" || key == "enable_line_numbers") {
+      config.line_numbers = to_bool(value);
     }
     else if (key == "verbose_open") {
       config.verbose_open = to_bool(value);
+    }
+    else if (key == "menubar" || key == "enable_menubar") {
+      config.menubar = to_bool(value);
     }
     else if (key == "bottomline_height") {
       if (std::stoi(value) > 0) config.bottomline_height = std::stoi(value);
@@ -148,8 +154,9 @@ void parse_config(std::string path) {
 }
 void load_config() {
   /* default values */
-  config.enable_line_numbers = true;
+  config.line_numbers = true;
   config.verbose_open = true;
+  config.menubar = false;
   config.bottomline_height = 2;
   config.tab_size = 4;
 
@@ -718,6 +725,18 @@ bool find_forward(std::string str) {
 void update_win_size() {
   getmaxyx(stdscr, ui.lines, ui.cols);
 }
+void render_menubar() {
+  if (config.menubar) {
+
+    // TODO: make it have different text based on mode 
+    editor.menubar = " [S]ave   [S-S]ave as   [S-N]ew   [S-O]pen   [$]hell   [S-Q]uit ";
+    // using box drawing vertical lines fucks with the padding of the %*, and it wont extend to the edge of the screen with that, and since pipes are ugly im just gonna space them out
+
+    attron(A_REVERSE);
+    mvprintw(0, 0, "%-*s", ui.cols, editor.menubar.c_str());
+    attroff(A_REVERSE);
+  }
+}
 void render_buffer() {
   int rend_line = 0;
 
@@ -730,22 +749,22 @@ void render_buffer() {
           for (int start = 0; start < std::max(1, int(line.size())); start += ui.text_width) {
             if (rend_line >= ui.text_height) break;
 
-            if (config.enable_line_numbers) {
+            if (config.line_numbers) {
               if (start == 0)
-                mvprintw(rend_line, 0, " %*d │ ", ui.linenum_digits, i + 1);
+                mvprintw((config.menubar) ? rend_line + 1 : rend_line, 0, " %*d │ ", ui.linenum_digits, i + 1);
               else
-                mvprintw(rend_line, 0, " %*s │ ", ui.linenum_digits, ".");
+                mvprintw((config.menubar) ? rend_line + 1 : rend_line, 0, " %*s │ ", ui.linenum_digits, ".");
             }
 
             for (int j = start; j < start + ui.text_width && j < line.size(); j++) {
               if (is_selected(i, j)) attron(A_REVERSE);
-              mvaddch(rend_line, ui.gutter_width + (j - start), line[j]);
+              mvaddch((config.menubar) ? rend_line + 1 : rend_line, ui.gutter_width + (j - start), line[j]);
               if (is_selected(i, j)) attroff(A_REVERSE);
             }
             rend_line++;
           }
         } else {
-          if (config.enable_line_numbers) mvprintw(rend_line, 0, " %*s │", ui.linenum_digits, " ");
+          if (config.line_numbers) mvprintw((config.menubar) ? rend_line + 1 : rend_line, 0, " %*s │", ui.linenum_digits, " ");
           rend_line++;
         }
       }
@@ -759,7 +778,7 @@ void render_buffer() {
 
         std::string label = entry.name + (entry.is_dir ? "/" : "");
 
-        mvprintw(rend_line, 1, "%s", label.c_str());
+        mvprintw((config.menubar) ? rend_line + 1 : rend_line, 1, "%s", label.c_str());
 
         if (i == editor.cur_line) attroff(A_REVERSE);
 
@@ -774,7 +793,7 @@ void render_bottomline() {
   }
   
   mvaddwstr(ui.lines - config.bottomline_height, 10, L"┬");   
-  if (config.enable_line_numbers) {
+  if (config.line_numbers) {
     if (ui.gutter_width - 2 == 10) {
       mvaddwstr(ui.lines - config.bottomline_height, 10, L"┼");   
     } else {
@@ -836,8 +855,6 @@ void render_bottomline() {
     mvprintw(ui.lines - config.bottomline_height + 1, ui.cols - (editor.bottomline_right.size() + 3), "│ %s ", editor.bottomline_right.c_str());
     mvaddwstr(ui.lines - config.bottomline_height, ui.cols - (editor.bottomline_right.size() + 3), L"┬");   
   }
-
-
 }
 void render_cursor() {
   static CursorType last_cursor = HIDDEN;
@@ -861,6 +878,8 @@ void render_cursor() {
   }
   cursor.row += editor.cur_char / ui.text_width;
 
+  if (config.menubar) cursor.row += 1;
+
   cursor.col = ui.gutter_width + (editor.cur_char % ui.text_width);
 
   move(cursor.row, cursor.col);
@@ -876,9 +895,10 @@ void update_screen() {
       ui.gutter_width = 1;
       ui.text_width = ui.cols - ui.gutter_width - 1;
       ui.text_height = ui.lines - config.bottomline_height;
+      if (config.menubar) ui.text_height -= 1;
       break;
     case TEXT:
-      if (config.enable_line_numbers) {
+      if (config.line_numbers) {
         ui.linenum_digits = std::to_string(buffer.content.size()).length();
         ui.gutter_width = ui.linenum_digits + 4;
       } else {
@@ -887,14 +907,18 @@ void update_screen() {
       }
       ui.text_width = ui.cols - ui.gutter_width - 1;
       ui.text_height = ui.lines - config.bottomline_height;
+      if (config.menubar) ui.text_height -= 1;
       break;
     case FILEMANAGER:
       ui.linenum_digits = 0;
       ui.gutter_width = 1;
       ui.text_width = ui.cols - ui.gutter_width - 1;
       ui.text_height = ui.lines - config.bottomline_height;
+      if (config.menubar) ui.text_height -= 1;
       break;
   }
+
+  render_menubar();
 
   render_buffer();
 
