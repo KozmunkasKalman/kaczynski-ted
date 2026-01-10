@@ -404,18 +404,24 @@ int vis_lines_between(int line1, int line2) {
 }
 
 void move_up() {
-  if (editor.cur_line > 0 && buffer.content[editor.cur_line].size() > ui.text_width && editor.cur_char - ui.text_width < buffer.content[editor.cur_line].size()){
-    editor.cur_char -= ui.text_width;
-  } else if (editor.cur_line > 0 && buffer.content[editor.cur_line - 1].size() > ui.text_width && editor.cur_char % ui.text_width <= buffer.content[editor.cur_line - 1].size()) {
-    editor.cur_line -= 1;
-    for (int i = 0; i <= buffer.content[editor.cur_line].size(); i += ui.text_width) {
-      editor.cur_char += ui.text_width;
-    }
-    editor.cur_char -= ui.text_width;
-  } else if (editor.cur_line > 0) {
-    editor.cur_line--;
-    if (editor.cur_line < editor.scr_offset) {
+  if (editor.cur_line > 0) {
+    if (editor.cur_char < ui.text_width && buffer.content[editor.cur_line - 1].size() / ui.text_width > ui.text_height) {
+      editor.cur_line -= 1;
       editor.scr_offset = editor.cur_line;
+    } else if (buffer.content[editor.cur_line].size() > ui.text_width && editor.cur_char - ui.text_width < buffer.content[editor.cur_line].size()) {
+      editor.cur_char -= ui.text_width;
+    } else if (buffer.content[editor.cur_line - 1].size() > ui.text_width && editor.cur_char % ui.text_width <= buffer.content[editor.cur_line - 1].size()) {
+      editor.cur_line -= 1;
+      if (editor.cur_line < editor.scr_offset) editor.scr_offset -= 1;
+      for (int i = 0; i <= buffer.content[editor.cur_line].size(); i += ui.text_width) {
+        editor.cur_char += ui.text_width;
+      }
+      editor.cur_char -= ui.text_width;
+    } else {
+      editor.cur_line--;
+      if (editor.cur_line < editor.scr_offset) {
+        editor.scr_offset = editor.cur_line;
+      }
     }
   }
   if (editor.cur_char > buffer.content[editor.cur_line].size()) {
@@ -423,17 +429,22 @@ void move_up() {
   }
 }
 void move_down() {
+  if (buffer.content[editor.cur_line].size() / ui.text_width > ui.text_height) {
+    editor.cur_line += 1;
+    editor.scr_offset = editor.cur_line;
+  } else {
     if (editor.cur_line < buffer.content.size() && buffer.content[editor.cur_line].size() > ui.text_width && editor.cur_char + ui.text_width < buffer.content[editor.cur_line].size()) {
-    editor.cur_char += ui.text_width;
-  } else if (editor.cur_line < buffer.content.size() - 1) {
-    if (editor.cur_char / ui.text_width + 1 < get_line_wraps(editor.cur_line)) {
       editor.cur_char += ui.text_width;
-    } else {
-      editor.cur_line++;
-      editor.cur_char %= ui.text_width;
-    }
-    if (editor.cur_line >= editor.scr_offset + ui.text_height) {
-      editor.scr_offset = editor.cur_line - (ui.text_height - 1);
+    } else if (editor.cur_line < buffer.content.size() - 1) {
+      if (editor.cur_char / ui.text_width + 1 < get_line_wraps(editor.cur_line)) {
+        editor.cur_char += ui.text_width;
+      } else {
+        editor.cur_line++;
+        editor.cur_char %= ui.text_width;
+      }
+      if (editor.cur_line >= editor.scr_offset + ui.text_height) {
+        editor.scr_offset = editor.cur_line - (ui.text_height - 1);
+      }
     }
   }
   if (editor.cur_char > buffer.content[editor.cur_line].size()) {
@@ -861,8 +872,8 @@ void render_bottomline() {
 
   mvprintw(ui.lines - config.bottomline_height + 1, 0, "%s", editor.bottomline.c_str());
 
-  if (buffer.type == TEXT || buffer.type == FILEMANAGER) {
-    editor.bottomline_right = std::to_string(editor.cur_line + 1) + ":" + std::to_string(editor.cur_char + 1) + ", " + std::to_string(editor.scr_offset);
+  if (buffer.type == TEXT) {
+    editor.bottomline_right = std::to_string(editor.cur_line + 1) + ":" + std::to_string(editor.cur_char + 1);
     mvprintw(ui.lines - config.bottomline_height + 1, ui.cols - (editor.bottomline_right.size() + 3), "│ %s ", editor.bottomline_right.c_str());
     mvaddwstr(ui.lines - config.bottomline_height, ui.cols - (editor.bottomline_right.size() + 3), L"┬");   
   }
@@ -1202,7 +1213,6 @@ int main(int argc, char* argv[]) {
                 buffer.type = TEXT;
                 buffer.name = editor.input;
                 editor.input.clear();
-                save(true);
                 set_mode(NORMAL);
               }
             }
