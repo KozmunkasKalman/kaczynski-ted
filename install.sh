@@ -28,7 +28,7 @@ install_bin() {
 
 build() {
   echo -ne "[ ] Building Kaczynski...                        (1/3)"
-  g++ -std=c++23 -lncursesw -o bin/kcz src/main.cpp
+  g++ src/main.cpp -o bin/kcz -std=c++23 -lncursesw
   if [ $? -eq 0 ]; then
     echo -ne "\r[\033[0;32m+\033[0m] Kaczynski-TED built successfully.            (1/3)\n"
     install_bin

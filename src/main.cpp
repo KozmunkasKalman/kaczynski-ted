@@ -863,7 +863,7 @@ void render_buffer() {
             std::string time = format_time(buffer.dir_content[i].mtime);
             mvprintw(
               (config.menubar ? rend_line + 1 : rend_line), 1,
-              "%10s %s %12d %s %s%s",
+              "%10s %s %10d %s %s%s",
               buffer.dir_content[i].perms.c_str(),
               buffer.dir_content[i].owner.c_str(),
               buffer.dir_content[i].size,

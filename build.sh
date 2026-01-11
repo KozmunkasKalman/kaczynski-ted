@@ -2,4 +2,4 @@
 
 set -ex
 
-g++ -std=c++23 -lncursesw -o bin/kcz src/main.cpp
+g++ src/main.cpp -o bin/kcz -std=c++23 -lncursesw
