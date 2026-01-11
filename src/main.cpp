@@ -9,17 +9,23 @@
 #include <clocale>
 #include <cwchar>
 #include <filesystem>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <pwd.h>
+#include <grp.h>
+#include <ctime>
+#include <unistd.h>
 #include <ncurses.h>
 
 
 
 // TODO: utf-8 unicode support
 // TODO: fix SELECT mode
-// TODO: get MOVE mode working with selection and stuff
 // TODO: system clipboard support with cut, copy, and paste
 // TODO: implement undo and redo
+// TODO: get MOVE mode working with selection and stuff
 // TODO: add sed-style find & replace thing
-// TODO: implement custom binds
+// TODO: implement custom binds in config
 // TODO: implement option for verbose output to OPEN mode, which should look similar to the output of 'ls -Apho1'
 // TODO: add support for multiple simultaneous buffers
 // TODO: add a terminal emulator mode
@@ -32,7 +38,14 @@ enum Mode { NONE, NORMAL, WRITE, SELECT, MOVE, GOTO, FIND, SAVE, NEW, OPEN, RENA
 enum CursorType { HIDDEN, BAR, LINE, BLOCK };
 enum BufferType { EMPTY, TEXT, FILEMANAGER };
 
-struct DirEntry { std::string name; bool is_dir; };
+struct DirEntry {
+  std::string name;
+  bool is_dir;
+  std::string perms;
+  std::string owner;
+  off_t size;
+  time_t mtime;
+};
 
 
 
@@ -166,7 +179,7 @@ void parse_config(std::string path) {
 void load_config() {
   /* default values */
   config.line_numbers = true;
-  config.verbose_open = true;
+  config.verbose_open = false;
   config.menubar = false;
   config.bottomline_height = 2;
   config.tab_size = 4;
@@ -238,6 +251,37 @@ void insert_string(std::string cont_str) {
 
 
 
+std::string perms_to_string(mode_t mode) {
+  std::string p;
+  p += (S_ISDIR(mode)) ? 'd' : '-';
+  p += (mode & S_IRUSR) ? 'r' : '-';
+  p += (mode & S_IWUSR) ? 'w' : '-';
+  p += (mode & S_IXUSR) ? 'x' : '-';
+  p += (mode & S_IRGRP) ? 'r' : '-';
+  p += (mode & S_IWGRP) ? 'w' : '-';
+  p += (mode & S_IXGRP) ? 'x' : '-';
+  p += (mode & S_IROTH) ? 'r' : '-';
+  p += (mode & S_IWOTH) ? 'w' : '-';
+  p += (mode & S_IXOTH) ? 'x' : '-';
+  return p;
+}
+std::string format_time(time_t t) {
+  std::tm tm{};
+  if (!localtime_r(&t, &tm)) return "????.??.??. ??:??";
+
+  char buf[32];
+  std::strftime(buf, sizeof(buf), "%Y.%m.%d. %H:%M", std::localtime(&t));
+  return buf;
+}
+std::string build_verbose_label(const DirEntry& e) {
+  std::ostringstream ss;
+  ss << e.perms << " "
+     << std::setw(8) << std::left << e.owner << " "
+     << std::setw(8) << std::right << e.size << " "
+     << format_time(e.mtime) << " "
+     << e.name << (e.is_dir ? "/" : "");
+  return ss.str();
+}
 bool dirEntryComparator(DirEntry &a, DirEntry &b) {
     if (a.name == "..") return true;
     if (b.name == "..") return false;
@@ -268,9 +312,21 @@ void load_directory(std::string path) {
     DirEntry d;
     d.name = entry.path().filename().string();
     d.is_dir = entry.is_directory();
+
+    if (config.verbose_open) {
+      struct stat st{};
+      if (stat(entry.path().c_str(), &st) == 0) {
+        d.perms = perms_to_string(st.st_mode);
+        d.size = st.st_size;
+        d.mtime = st.st_mtime;
+
+        if (auto pw = getpwuid(st.st_uid)) d.owner = pw->pw_name;
+        else d.owner = "???";
+      }
+    }
+
     buffer.dir_content.push_back(d);
-    // TODO: add verbose output to it, which should look similar to the output of 'ls -Apho1 | tail -n +2'
-    buffer.content.push_back(d.name + (d.is_dir ? "/" : ""));
+    buffer.content.push_back(d.name + ((d.is_dir) ? "/" : ""));
   }
 
   std::sort(buffer.dir_content.begin(), buffer.dir_content.end(), dirEntryComparator);
@@ -800,20 +856,54 @@ void render_buffer() {
       break;
 
     case FILEMANAGER:
+      // for (int i = editor.scr_offset; i < buffer.dir_content.size() && rend_line < ui.text_height; i++) {
+      //   auto entry = buffer.dir_content[i];
+      //
+      //   if (i == editor.cur_line) attron(A_REVERSE);
+      //
+      //   std::string label = entry.name + (entry.is_dir ? "/" : "");
+      //
+      //   mvprintw((config.menubar) ? rend_line + 1 : rend_line, 1, "%s", label.c_str());
+      //
+      //   if (i == editor.cur_line) attroff(A_REVERSE);
       for (int i = editor.scr_offset; i < buffer.dir_content.size() && rend_line < ui.text_height; i++) {
-        auto entry = buffer.dir_content[i];
-
         if (i == editor.cur_line) attron(A_REVERSE);
 
-        std::string label = entry.name + (entry.is_dir ? "/" : "");
-
-        mvprintw((config.menubar) ? rend_line + 1 : rend_line, 1, "%s", label.c_str());
-
+        if (config.verbose_open) {
+          if (buffer.dir_content[i].name != "..") {
+            std::string time = format_time(buffer.dir_content[i].mtime);
+            mvprintw(
+              (config.menubar ? rend_line + 1 : rend_line), 1,
+              "%10s %s %12d %s %s%s",
+              buffer.dir_content[i].perms.c_str(),
+              buffer.dir_content[i].owner.c_str(),
+              buffer.dir_content[i].size,
+              time.c_str(),
+              buffer.dir_content[i].name.c_str(),
+              buffer.dir_content[i].is_dir ? "/" : ""
+            );
+          } else {
+            mvprintw(
+              (config.menubar ? rend_line + 1 : rend_line), 1,
+              "%49s%s",
+              buffer.dir_content[i].name.c_str(),
+              buffer.dir_content[i].is_dir ? "/" : ""
+            );
+          }
+        } else {
+          mvprintw(
+            (config.menubar ? rend_line + 1 : rend_line),
+            1,
+            "%s%s",
+            buffer.dir_content[i].name.c_str(),
+            buffer.dir_content[i].is_dir ? "/" : ""
+          );
+        }
         if (i == editor.cur_line) attroff(A_REVERSE);
 
         rend_line++;
-       }
-       break;
+      }
+      break;
   }
 }
 void render_bottomline() {
