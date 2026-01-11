@@ -26,7 +26,6 @@
 // TODO: get MOVE mode working with selection and stuff
 // TODO: add sed-style find & replace thing
 // TODO: implement custom binds in config
-// TODO: implement option for verbose output to OPEN mode, which should look similar to the output of 'ls -Apho1'
 // TODO: add support for multiple simultaneous buffers
 // TODO: add a terminal emulator mode
 // TODO: implement mouse support (clicking in text moves cursor, opens folder in file manager, menubar stuff, etcv)
@@ -856,16 +855,6 @@ void render_buffer() {
       break;
 
     case FILEMANAGER:
-      // for (int i = editor.scr_offset; i < buffer.dir_content.size() && rend_line < ui.text_height; i++) {
-      //   auto entry = buffer.dir_content[i];
-      //
-      //   if (i == editor.cur_line) attron(A_REVERSE);
-      //
-      //   std::string label = entry.name + (entry.is_dir ? "/" : "");
-      //
-      //   mvprintw((config.menubar) ? rend_line + 1 : rend_line, 1, "%s", label.c_str());
-      //
-      //   if (i == editor.cur_line) attroff(A_REVERSE);
       for (int i = editor.scr_offset; i < buffer.dir_content.size() && rend_line < ui.text_height; i++) {
         if (i == editor.cur_line) attron(A_REVERSE);
 
