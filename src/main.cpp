@@ -3,6 +3,7 @@
 #include <sstream>
 #include <vector>
 #include <string>
+#include <algorithm>
 #include <cctype>
 #include <cstdlib>
 #include <locale>
@@ -19,7 +20,7 @@
 
 
 
-// TODO: utf-8 unicode support
+// IMPORTANT TODO: utf-8 unicode support
 // TODO: fix SELECT mode
 // TODO: system clipboard support with cut, copy, and paste
 // TODO: implement undo and redo
@@ -28,7 +29,7 @@
 // TODO: implement custom binds in config
 // TODO: add support for multiple simultaneous buffers
 // TODO: add a terminal emulator mode
-// TODO: implement mouse support (clicking in text moves cursor, opens folder in file manager, menubar stuff, etcv)
+// TODO: implement mouse support (clicking in text moves cursor, opens folder in file manager, menubar stuff, etc)
 // TODO: optimize and refactor whatever can be
 
 
@@ -470,12 +471,12 @@ int vis_lines_between(int line1, int line2) {
 }
 
 void move_up() {
-  if (editor.cur_line > 0) {
+  if (editor.cur_line >= 0 && buffer.content[editor.cur_line].size() > ui.text_width && editor.cur_char - ui.text_width < buffer.content[editor.cur_line].size()) {
+      editor.cur_char -= ui.text_width;
+  } else if (editor.cur_line > 0) {
     if (editor.cur_char < ui.text_width && buffer.content[editor.cur_line - 1].size() / ui.text_width > ui.text_height) {
       editor.cur_line -= 1;
       editor.scr_offset = editor.cur_line;
-    } else if (buffer.content[editor.cur_line].size() > ui.text_width && editor.cur_char - ui.text_width < buffer.content[editor.cur_line].size()) {
-      editor.cur_char -= ui.text_width;
     } else if (buffer.content[editor.cur_line - 1].size() > ui.text_width && editor.cur_char % ui.text_width <= buffer.content[editor.cur_line - 1].size()) {
       editor.cur_line -= 1;
       if (editor.cur_line < editor.scr_offset) editor.scr_offset -= 1;
