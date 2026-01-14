@@ -1,3 +1,5 @@
+%global debug_package %{nil}
+
 Name:           kcz
 Version:        0.1.0.alpha1
 Release:        1%{?dist}
