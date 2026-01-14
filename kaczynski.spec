@@ -11,6 +11,7 @@ Source0:        kaczynski-ted.tar.gz
 
 BuildRequires:  gcc-c++
 BuildRequires:  ncurses-devel
+BuildRequires:  ncurses-static
 BuildRequires:  make
 Requires:       ncurses
 
