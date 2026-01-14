@@ -1,4 +1,3 @@
 PKGBUILD
 rpmbuild/*
-kaczynski.spec
 pkg/*
