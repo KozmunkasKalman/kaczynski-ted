@@ -1,7 +1,7 @@
 #Jan 1, 2026 Vani1-2 <giovannirafanan609@gmail.com>
 
 CXX = g++
-CXXFLAGS = -std=c++23 -lncursesw
+CXXFLAGS = -std=c++23 -lncursesw -g
 TARGET = bin/kcz
 SRC = src/main.cpp
 
