@@ -12,52 +12,44 @@ Compared to Vim it mainly lacks several things, but not limited to: Vim motions 
 
 This by no means is supposed to be a replacement for Vim, and if it would be, then only for me. Primarily because Vim is just too damn useful for most things. And besides, this is currently way too unstable to be used for anything serious.
 
-### Installation:
+## Installation:
 
-To install Kaczynski you have 2 options:
+To install Kaczynski you have these options:
 
-1. Make a package:
-   Step 1:
+### Debian package:
+```.deb``` package is available in this repository: [**APT Repository**](https://vani1-2.github.io/vani-pkgs)
+
+
+### RHEL/Fedora Package:
+
+available as an `.rpm` via this copr repo:
+
+<p align="left">
+  <a href="https://copr.fedorainfracloud.org/coprs/vaniiiiii/kaczynski-ted/">
+    <img src="https://img.shields.io/badge/📦_Copr-294172?style=for-the-badge&logo=fedora&logoColor=white" alt="Copr">
+  </a> 
+</p>
+
+### Arch and Arch based derivatives;
+
+PKGBUILD soon...
+
+
+## Building from source:
+
 ```bash
 git clone https://github.com/KozmunkasKalman/kaczynski-ted.git
+
 cd kaczynski-ted
-```
-   Step 2: 
 
-   - For Arch-based distros (such as Endeavour or Cachy) to get a .pkg.tar.xz file, you want to run:
-```bash
-make pkg
-```
-   - For RHEL-based distros (such as Fedora or ALT) to get an rpm package, you want to run:
-```bash
-make rpm
-```
-   Step 3:
-
-   Install using your package manager
-
-```bash
-sudo pacman -U arch-pkg/kcz.pkg.tar.xz
-```
-   or
-```bash
-sudo dnf install ./kcz
-```
-
-
-
-2. Install just the binary:
-   Step 1:
-   Run the following command:
-```bash
-git clone https://github.com/KozmunkasKalman/kaczynski-ted.git && cd kaczynski-ted && chmod +x install.sh && bash ./install.sh
+make all
 ```
 
 
 
 
 
-### Targets:
+## Targets:
 
 - [x] Installation script
 - [x] Create new files
