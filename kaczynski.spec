@@ -2,7 +2,7 @@
 
 Name:           kcz
 Version:        0.1.0.alpha1
-Release:        1%{?dist}
+Release:        2%{?dist}
 Summary:        Pragmatic modal plaintext editor inspired by Vim, Nano, and others
 
 License:        Apache-2.0
@@ -13,7 +13,6 @@ BuildRequires:  gcc-c++
 BuildRequires:  ncurses-devel
 BuildRequires:  ncurses-static
 BuildRequires:  make
-Requires:       ncurses
 
 %description
 "Kaczynski" Text EDitor is an entirely pragmatic modal text editor inspired by Vim, 
@@ -23,13 +22,11 @@ Nano and others. It depends on NCurses for the TUI.
 %setup -q -n kaczynski-ted
 
 %build
-make all
+mkdir -p bin
+g++ -std=c++23 -g src/main.cpp -o bin/kcz -Wl,-Bstatic -lncursesw -ltinfo -Wl,-Bdynamic
 
 %install
-
 install -Dm755 bin/kcz %{buildroot}%{_bindir}/kcz
-
-
 install -Dm644 README.md %{buildroot}%{_docdir}/%{name}/README.md
 
 %files
@@ -38,5 +35,5 @@ install -Dm644 README.md %{buildroot}%{_docdir}/%{name}/README.md
 %{_docdir}/%{name}/README.md
 
 %changelog
-* Wed Jan 14 2026 Vani1-2 <giovannirafanan609@gmail.com> - 0.1.0.alpha1-1
-- Initial package
+* Wed Jan 14 2026 KozmunkasKalman <user@example.com> - 0.1.0.alpha1-2
+- Force static linking by fixing compiler argument order
