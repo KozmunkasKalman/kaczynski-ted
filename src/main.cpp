@@ -9,6 +9,7 @@
 #include <locale>
 #include <clocale>
 #include <cwchar>
+#include <climits>
 #include <filesystem>
 #include <sys/stat.h>
 #include <sys/types.h>
@@ -20,7 +21,6 @@
 
 
 
-// IMPORTANT TODO: utf-8 unicode support
 // TODO: fix SELECT mode
 // TODO: system clipboard support with cut, copy, and paste
 // TODO: implement undo and redo
@@ -118,6 +118,51 @@ struct {
   int bottomline_height;
   int tab_size;
 } config;
+
+
+
+// After like a week of fucking around with this shit, I still couldn't figure out how to add UTF-8 support, so I just gave up and asked ChatJewPT, please forgive me
+inline bool utf8_is_lead(unsigned char c) {
+  return (c & 0xC0) != 0x80;
+}
+inline size_t utf8_prev_cp(const std::string& s, size_t i) {
+  if (i == 0) return 0;
+  i--;
+  while (i > 0 && !utf8_is_lead((unsigned char)s[i]))
+    i--;
+  return i;
+}
+inline size_t utf8_next_cp(const std::string& s, size_t i) {
+  if (i >= s.size()) return s.size();
+  i++;
+  while (i < s.size() && !utf8_is_lead((unsigned char)s[i]))
+    i++;
+  return i;
+}
+inline size_t utf8_byte_index(const std::string& s, size_t char_idx) {
+  size_t i = 0;
+  for (size_t c = 0; c < char_idx && i < s.size(); c++)
+    i = utf8_next_cp(s, i);
+  return i;
+}
+inline size_t utf8_length(const std::string& s) {
+  size_t n = 0;
+  for (size_t i = 0; i < s.size(); ) {
+    i = utf8_next_cp(s, i);
+    n++;
+  }
+  return n;
+}
+inline int utf8_width(const std::string &s) {
+  int width = 0;
+  for (size_t i = 0; i < s.size(); ) {
+     uint32_t cp = utf8_next_cp(s, i); // i is updated
+     int w = wcwidth(static_cast<wchar_t>(cp));
+     if (w < 0) w = 0; // non-printable
+     width += w;
+  }
+  return width;
+}
 
 
 
@@ -540,7 +585,9 @@ void move_left() {
   }
 }
 void move_right() {
-  if (editor.cur_char < buffer.content[editor.cur_line].size()) {
+  // if (editor.cur_char < buffer.content[editor.cur_line].size()) {
+  //   editor.cur_char++;
+  if (editor.cur_char < utf8_length(buffer.content[editor.cur_line])) {
     editor.cur_char++;
   } else if (editor.cur_line < buffer.content.size() - 1) {
     move_down();
@@ -699,19 +746,25 @@ void del_char(int del_offset) {
   // TODO: merge del_offset if - else statement into single scope using del_offset variable properly
   if (del_offset != 0) {
     if (editor.cur_char > 0) {
-      buffer.content[editor.cur_line].erase(editor.cur_char - 1, 1);
+      size_t b2 = utf8_byte_index(buffer.content[editor.cur_line], editor.cur_char);
+      size_t b1 = utf8_prev_cp(buffer.content[editor.cur_line], b2);
+      buffer.content[editor.cur_line].erase(b1, b2 - b1);
       editor.cur_char--;
-    } else if (editor.cur_line > 0) {
-      int prev = buffer.content[editor.cur_line - 1].size();
+    }
+    else if (editor.cur_line > 0) {
+      size_t prev_len = utf8_length(buffer.content[editor.cur_line - 1]);
       buffer.content[editor.cur_line - 1] += buffer.content[editor.cur_line];
       buffer.content.erase(buffer.content.begin() + editor.cur_line);
       editor.cur_line--;
-      editor.cur_char = prev;
+      editor.cur_char = prev_len;
     }
   } else {
-    if (editor.cur_char < buffer.content[editor.cur_line].size()) {
-      buffer.content[editor.cur_line].erase(editor.cur_char, 1);
-    } else if (editor.cur_line < buffer.content.size() - 1) {
+    size_t b1 = utf8_byte_index(buffer.content[editor.cur_line], editor.cur_char);
+    if (b1 < buffer.content[editor.cur_line].size()) {
+      size_t b2 = utf8_next_cp(buffer.content[editor.cur_line], b1);
+      buffer.content[editor.cur_line].erase(b1, b2 - b1);
+    }
+    else if (editor.cur_line < buffer.content.size() - 1) {
       buffer.content[editor.cur_line] += buffer.content[editor.cur_line + 1];
       buffer.content.erase(buffer.content.begin() + editor.cur_line + 1);
     }
@@ -843,7 +896,17 @@ void render_buffer() {
 
             for (int j = start; j < start + ui.text_width && j < line.size(); j++) {
               if (is_selected(i, j)) attron(A_REVERSE);
-              mvaddch((config.menubar) ? rend_line + 1 : rend_line, ui.gutter_width + (j - start), line[j]);
+              // mvaddch((config.menubar) ? rend_line + 1 : rend_line, ui.gutter_width + (j - start), line[j]);
+              size_t b = utf8_byte_index(line, j);
+              wchar_t wc;
+              mbstate_t st{};
+              int len = mbrtowc(&wc, &line[b], line.size() - b, &st);
+
+              if (len > 0) {
+                cchar_t cc;
+                setcchar(&cc, &wc, A_NORMAL, 0, nullptr);
+                mvadd_wch((config.menubar) ? rend_line + 1 : rend_line, ui.gutter_width + (j - start), &cc);
+              }
               if (is_selected(i, j)) attroff(A_REVERSE);
             }
             rend_line++;
@@ -1155,8 +1218,16 @@ int main(int argc, char* argv[]) {
         else if (ch == '\t') { for (int i = 0; i < config.tab_size; i++) { insert_string(" "); } }
         else if (std::iswprint(ch) || std::iswspace(ch)) {
           if (editor.insert) del_char(0); // kind of a workaround tbh but it works
-          buffer.content[editor.cur_line].insert(editor.cur_char, 1, ch);
-          editor.cur_char++;
+          auto& line = buffer.content[editor.cur_line];
+          size_t byte_pos = utf8_byte_index(line, editor.cur_char);
+
+          char utf8[MB_LEN_MAX];
+          mbstate_t st{};
+          int len = wcrtomb(utf8, ch, &st);
+          if (len > 0) {
+            line.insert(byte_pos, utf8, len);
+            editor.cur_char++;
+          }
         }
         break;
 
