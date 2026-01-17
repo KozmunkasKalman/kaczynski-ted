@@ -46,10 +46,6 @@ struct DirEntry {
   off_t size;
   time_t mtime;
 };
-struct LineCache {
-  int char_len; // utf8_length
-  std::vector<int> byte_offsets;
-};
 
 
 
@@ -76,7 +72,6 @@ struct {
   std::string name;
   std::vector<std::string> content;
   std::vector<DirEntry> dir_content;
-  std::vector<LineCache> line_cache;
 } buffer;
 
 struct {
