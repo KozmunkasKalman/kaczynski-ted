@@ -69,7 +69,7 @@ make all
 - [x] Insert key functionality (overwriting text)
 - [ ] Scroll lock key functionality (locking screen in place)
 - [ ] Tabs (support for multiple simultaneously open buffers)
-- [ ] Unicode support
+- [x] Unicode support
 - [x] Proper TUI menus (navigable by keyboard & mouse, for things like file opening and such)
 - [ ] Syntax highlighting
 - [ ] Automatic line wrapping based on words
