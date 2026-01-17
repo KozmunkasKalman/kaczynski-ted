@@ -46,6 +46,10 @@ struct DirEntry {
   off_t size;
   time_t mtime;
 };
+struct LineCache {
+  int char_len; // utf8_length
+  std::vector<int> byte_offsets;
+};
 
 
 
@@ -72,6 +76,7 @@ struct {
   std::string name;
   std::vector<std::string> content;
   std::vector<DirEntry> dir_content;
+  std::vector<LineCache> line_cache;
 } buffer;
 
 struct {
@@ -135,7 +140,7 @@ inline size_t utf8_prev_cp(const std::string& s, size_t i) {
 inline size_t utf8_next_cp(const std::string& s, size_t i) {
   if (i >= s.size()) return s.size();
   i++;
-  while (i < s.size() && !utf8_is_lead((unsigned char)s[i]))
+  while (i < s.size() && !utf8_is_lead(s[i]))
     i++;
   return i;
 }
@@ -148,18 +153,28 @@ inline size_t utf8_byte_index(const std::string& s, size_t char_idx) {
 inline size_t utf8_length(const std::string& s) {
   size_t n = 0;
   for (size_t i = 0; i < s.size(); ) {
-    i = utf8_next_cp(s, i);
     n++;
   }
   return n;
 }
 inline int utf8_width(const std::string &s) {
   int width = 0;
-  for (size_t i = 0; i < s.size(); ) {
-     uint32_t cp = utf8_next_cp(s, i); // i is updated
-     int w = wcwidth(static_cast<wchar_t>(cp));
-     if (w < 0) w = 0; // non-printable
-     width += w;
+  mbstate_t st{};
+  for (size_t i = 0; i < s.size();) {
+    wchar_t wc;
+    size_t len = mbrtowc(&wc, &s[i], s.size() - i, &st);
+
+    if (len == (size_t)-1 || len == (size_t)-2 || len == 0) {
+      // invalid byte, skip it
+      ++i;
+      continue;
+    }
+
+    int w = wcwidth(wc);
+    if (w < 0) w = 0;
+
+    width += w;
+    i = utf8_next_cp(s, i);
   }
   return width;
 }
@@ -505,7 +520,7 @@ void open_file(std::string file) {
 
 int get_line_wraps(int line) {
   if (line < 0 || line >= buffer.content.size()) return 1;
-  return std::max(1, (int(buffer.content[line].size()) + ui.text_width - 1) / ui.text_width);
+  return std::max(1, (int(utf8_width(buffer.content[line])) + ui.text_width - 1) / ui.text_width);
 }
 int vis_lines_between(int line1, int line2) {
   int vis_lines = 0;
@@ -516,16 +531,16 @@ int vis_lines_between(int line1, int line2) {
 }
 
 void move_up() {
-  if (editor.cur_line >= 0 && buffer.content[editor.cur_line].size() > ui.text_width && editor.cur_char - ui.text_width < buffer.content[editor.cur_line].size()) {
+  if (editor.cur_line >= 0 && utf8_width(buffer.content[editor.cur_line]) > ui.text_width && editor.cur_char - ui.text_width < utf8_width(buffer.content[editor.cur_line])) {
       editor.cur_char -= ui.text_width;
   } else if (editor.cur_line > 0) {
-    if (editor.cur_char < ui.text_width && buffer.content[editor.cur_line - 1].size() / ui.text_width > ui.text_height) {
+    if (editor.cur_char < ui.text_width && utf8_width(buffer.content[editor.cur_line - 1]) / ui.text_width > ui.text_height) {
       editor.cur_line -= 1;
       editor.scr_offset = editor.cur_line;
-    } else if (buffer.content[editor.cur_line - 1].size() > ui.text_width && editor.cur_char % ui.text_width <= buffer.content[editor.cur_line - 1].size()) {
+    } else if (utf8_width(buffer.content[editor.cur_line - 1]) > ui.text_width && editor.cur_char % ui.text_width <= utf8_width(buffer.content[editor.cur_line - 1])) {
       editor.cur_line -= 1;
       if (editor.cur_line < editor.scr_offset) editor.scr_offset -= 1;
-      for (int i = 0; i <= buffer.content[editor.cur_line].size(); i += ui.text_width) {
+      for (int i = 0; i <= utf8_width(buffer.content[editor.cur_line]); i += ui.text_width) {
         editor.cur_char += ui.text_width;
       }
       editor.cur_char -= ui.text_width;
@@ -536,16 +551,16 @@ void move_up() {
       }
     }
   }
-  if (editor.cur_char > buffer.content[editor.cur_line].size()) {
-    editor.cur_char = buffer.content[editor.cur_line].size();
+  if (editor.cur_char > utf8_width(buffer.content[editor.cur_line])) {
+    editor.cur_char = utf8_width(buffer.content[editor.cur_line]);
   }
 }
 void move_down() {
-  if (buffer.content[editor.cur_line].size() / ui.text_width > ui.text_height) {
+  if (utf8_width(buffer.content[editor.cur_line]) / ui.text_width > ui.text_height) {
     editor.cur_line += 1;
     editor.scr_offset = editor.cur_line;
   } else {
-    if (editor.cur_line < buffer.content.size() && buffer.content[editor.cur_line].size() > ui.text_width && editor.cur_char + ui.text_width < buffer.content[editor.cur_line].size()) {
+    if (editor.cur_line < buffer.content.size() && utf8_width(buffer.content[editor.cur_line]) > ui.text_width && editor.cur_char + ui.text_width < utf8_width(buffer.content[editor.cur_line])) {
       editor.cur_char += ui.text_width;
     } else if (editor.cur_line < buffer.content.size() - 1) {
       if (editor.cur_char / ui.text_width + 1 < get_line_wraps(editor.cur_line)) {
@@ -578,40 +593,38 @@ void move_left() {
     editor.cur_char--;
   } else if (editor.cur_line > 0) {
     move_up();
-    editor.cur_char = buffer.content[editor.cur_line].size();
+    editor.cur_char = utf8_width(buffer.content[editor.cur_line]);
   }
-  if (editor.cur_char > buffer.content[editor.cur_line].size()) {
-    editor.cur_char = buffer.content[editor.cur_line].size();
+  if (editor.cur_char > utf8_width(buffer.content[editor.cur_line])) {
+    editor.cur_char = utf8_width(buffer.content[editor.cur_line]);
   }
 }
 void move_right() {
-  // if (editor.cur_char < buffer.content[editor.cur_line].size()) {
-  //   editor.cur_char++;
-  if (editor.cur_char < utf8_length(buffer.content[editor.cur_line])) {
+  if (editor.cur_char < utf8_width(buffer.content[editor.cur_line])) {
     editor.cur_char++;
   } else if (editor.cur_line < buffer.content.size() - 1) {
     move_down();
     editor.cur_char = 0;
   }
-  if (editor.cur_char > buffer.content[editor.cur_line].size()) {
-    editor.cur_char = buffer.content[editor.cur_line].size();
+  if (editor.cur_char > utf8_width(buffer.content[editor.cur_line])) {
+    editor.cur_char = utf8_width(buffer.content[editor.cur_line]);
   }
 }
 void buffer_top() {
   editor.cur_line = 0;
   editor.scr_offset = 0;
-  if (editor.cur_char > buffer.content[0].size() - 1) {
-    editor.cur_char = buffer.content[0].size();
+  if (editor.cur_char > utf8_width(buffer.content[0]) - 1) {
+    editor.cur_char = utf8_width(buffer.content[0]);
   }
 }
 void buffer_bottom() {
   editor.cur_line = buffer.content.size() - 1;
   editor.scr_offset = (editor.cur_line >= ui.text_height) ? editor.cur_line - (ui.lines - 3 - get_line_wraps(editor.cur_line)) : 0;
-  if (buffer.content[editor.cur_line].size() > ui.text_width) {
-    editor.scr_offset += int(buffer.content[editor.cur_line].size() / ui.text_width);
+  if (utf8_width(buffer.content[editor.cur_line]) > ui.text_width) {
+    editor.scr_offset += int(utf8_width(buffer.content[editor.cur_line]) / ui.text_width);
   }
-  if (editor.cur_char > buffer.content[editor.cur_line].size()) {
-    editor.cur_char = buffer.content[editor.cur_line].size();
+  if (editor.cur_char > utf8_width(buffer.content[editor.cur_line])) {
+    editor.cur_char = utf8_width(buffer.content[editor.cur_line]);
   }
 }
 void page_up() {
@@ -752,7 +765,7 @@ void del_char(int del_offset) {
       editor.cur_char--;
     }
     else if (editor.cur_line > 0) {
-      size_t prev_len = utf8_length(buffer.content[editor.cur_line - 1]);
+      size_t prev_len = utf8_width(buffer.content[editor.cur_line - 1]);
       buffer.content[editor.cur_line - 1] += buffer.content[editor.cur_line];
       buffer.content.erase(buffer.content.begin() + editor.cur_line);
       editor.cur_line--;
@@ -884,7 +897,7 @@ void render_buffer() {
         if (i < buffer.content.size()) {
           std::string &line = buffer.content[i];
 
-          for (int start = 0; start < std::max(1, int(line.size())); start += ui.text_width) {
+          for (int start = 0; start < std::max(1, int(utf8_width(line))); start += ui.text_width) {
             if (rend_line >= ui.text_height) break;
 
             if (config.line_numbers) {
@@ -894,11 +907,15 @@ void render_buffer() {
                 mvprintw((config.menubar) ? rend_line + 1 : rend_line, 0, " %*s │ ", ui.linenum_digits, ".");
             }
 
+            std::vector<wchar_t> glyphs;
+            glyphs.reserve(ui.text_width);
+
             for (int j = start; j < start + ui.text_width && j < line.size(); j++) {
+              wchar_t wc;
+
               if (is_selected(i, j)) attron(A_REVERSE);
               // mvaddch((config.menubar) ? rend_line + 1 : rend_line, ui.gutter_width + (j - start), line[j]);
               size_t b = utf8_byte_index(line, j);
-              wchar_t wc;
               mbstate_t st{};
               int len = mbrtowc(&wc, &line[b], line.size() - b, &st);
 
@@ -908,6 +925,8 @@ void render_buffer() {
                 mvadd_wch((config.menubar) ? rend_line + 1 : rend_line, ui.gutter_width + (j - start), &cc);
               }
               if (is_selected(i, j)) attroff(A_REVERSE);
+
+              glyphs.push_back(wc);
             }
             rend_line++;
           }
@@ -1193,7 +1212,7 @@ int main(int argc, char* argv[]) {
         else if (ch == 't') buffer_top();
         else if (ch == 'b') buffer_bottom();
         else if (ch == KEY_HOME) editor.cur_char = 0;
-        else if (ch == KEY_END) editor.cur_char = buffer.content[editor.cur_line].size();
+        else if (ch == KEY_END) editor.cur_char = utf8_width(buffer.content[editor.cur_line]);
         else if (ch == 339) page_up();
         else if (ch == 338) page_down();
         break;
@@ -1212,7 +1231,7 @@ int main(int argc, char* argv[]) {
           else { editor.insert = true; cursor.type = LINE; }
         }
         else if (ch == KEY_HOME) editor.cur_char = 0;
-        else if (ch == KEY_END) editor.cur_char = buffer.content[editor.cur_line].size();
+        else if (ch == KEY_END) editor.cur_char = utf8_width(buffer.content[editor.cur_line]);
         else if (ch == 339) page_up();
         else if (ch == 338) page_down();
         else if (ch == '\t') { for (int i = 0; i < config.tab_size; i++) { insert_string(" "); } }
@@ -1244,7 +1263,7 @@ int main(int argc, char* argv[]) {
         else if (ch == KEY_LEFT) move_left();
         else if (ch == KEY_RIGHT) move_right();
         else if (ch == KEY_HOME) editor.cur_char = 0;
-        else if (ch == KEY_END) editor.cur_char = buffer.content[editor.cur_line].size();
+        else if (ch == KEY_END) editor.cur_char = utf8_width(buffer.content[editor.cur_line]);
         else if (ch == 339) page_up();
         else if (ch == 338) page_down();
         else if (ch == 't') buffer_top();
