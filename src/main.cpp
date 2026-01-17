@@ -531,15 +531,16 @@ int vis_lines_between(int line1, int line2) {
 }
 
 void move_up() {
-  if (editor.cur_line >= 0 && utf8_width(buffer.content[editor.cur_line]) > ui.text_width && editor.cur_char - ui.text_width < utf8_width(buffer.content[editor.cur_line])) {
-      editor.cur_char -= ui.text_width;
+  if (editor.cur_line >= 0 && editor.cur_char >= 0 && utf8_width(buffer.content[editor.cur_line]) > ui.text_width && editor.cur_char - ui.text_width < utf8_width(buffer.content[editor.cur_line]) && editor.cur_char - ui.text_width >= 0) {
+    editor.cur_char -= ui.text_width;
   } else if (editor.cur_line > 0) {
     if (editor.cur_char < ui.text_width && utf8_width(buffer.content[editor.cur_line - 1]) / ui.text_width > ui.text_height) {
-      editor.cur_line -= 1;
+      editor.cur_line--;
       editor.scr_offset = editor.cur_line;
     } else if (utf8_width(buffer.content[editor.cur_line - 1]) > ui.text_width && editor.cur_char % ui.text_width <= utf8_width(buffer.content[editor.cur_line - 1])) {
-      editor.cur_line -= 1;
+      editor.cur_line--;
       if (editor.cur_line < editor.scr_offset) editor.scr_offset -= 1;
+      // TODO: optimize this, feels like a dumb solution
       for (int i = 0; i <= utf8_width(buffer.content[editor.cur_line]); i += ui.text_width) {
         editor.cur_char += ui.text_width;
       }
