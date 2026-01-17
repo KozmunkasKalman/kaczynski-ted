@@ -953,7 +953,7 @@ void render_buffer() {
           } else {
             mvprintw(
               (config.menubar ? rend_line + 1 : rend_line), 1,
-              "%49s%s",
+              "%47s%s",
               buffer.dir_content[i].name.c_str(),
               buffer.dir_content[i].is_dir ? "/" : ""
             );
