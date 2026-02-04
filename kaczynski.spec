@@ -1,8 +1,8 @@
 %global debug_package %{nil}
 
 Name:           kcz
-Version:        0.1.0-rc1
-Release:        2%{?dist}
+Version:        0.1.0
+Release:        0.1.rc1%{?dist}
 Summary:        Pragmatic modal plaintext editor inspired by Vim, Nano, and others
 
 License:        Apache-2.0
