@@ -17,7 +17,7 @@ This by no means is supposed to be a replacement for Vim, and if it would be, th
 To install Kaczynski you have these options:
 
 ### Debian package:
-```.deb``` package is available in this repository: [**APT Repository**](https://vani1-2.github.io/vani-pkgs)
+```.deb``` package is available in this repository: [**APT Repository**](https://vani-tty1.github.io/vani-pkgs)
 
 
 ### RHEL/Fedora Package:

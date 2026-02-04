@@ -1,7 +1,7 @@
 %global debug_package %{nil}
 
 Name:           kcz
-Version:        0.1.0.alpha1
+Version:        0.1.0-rc1
 Release:        2%{?dist}
 Summary:        Pragmatic modal plaintext editor inspired by Vim, Nano, and others
 
@@ -35,5 +35,5 @@ install -Dm644 README.md %{buildroot}%{_docdir}/%{name}/README.md
 %{_docdir}/%{name}/README.md
 
 %changelog
-* Wed Jan 14 2026 KozmunkasKalman <user@example.com> - 0.1.0.alpha1-2
-- Force static linking by fixing compiler argument order
+* Wed Jan 14 2026 KozmunkasKalman <user@example.com> - 0.1.0-rc1
+- build using the latest commit
