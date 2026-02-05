@@ -19,8 +19,13 @@
 #include <unistd.h>
 #include <ncurses.h>
 
+#ifndef CTRL
+#define CTRL(c) ((c) & 037)
+#endif
 
 
+
+// TODO: transition to CUA keybinds
 // TODO: fix SELECT mode
 // TODO: system clipboard support with cut, copy, and paste
 // TODO: implement undo and redo
@@ -111,12 +116,15 @@ struct {
   std::string last_find;
 } search;
 
+
+
 struct {
-  bool line_numbers;
-  bool verbose_open;
-  bool menubar;
-  int bottomline_height;
-  int tab_size;
+  bool modal = true;
+  bool line_numbers = true;
+  bool verbose_open = false;
+  bool menubar = false;
+  int bottomline_height = 2;
+  int tab_size = 4;
 } config;
 
 
@@ -214,31 +222,22 @@ void parse_config(std::string path) {
     std::string key = trim(line.substr(0, equals));
     std::string value = trim(line.substr(equals + 1));
 
-    if (key == "line_numbers" || key == "enable_line_numbers") {
+    if (key == "modal") {
+      config.modal = to_bool(value);
+    } else if (key == "line_numbers" || key == "enable_line_numbers") {
       config.line_numbers = to_bool(value);
-    }
-    else if (key == "verbose_open") {
+    } else if (key == "verbose_open") {
       config.verbose_open = to_bool(value);
-    }
-    else if (key == "menubar" || key == "enable_menubar") {
+    } else if (key == "menubar" || key == "enable_menubar") {
       config.menubar = to_bool(value);
-    }
-    else if (key == "bottomline_height") {
+    } else if (key == "bottomline_height") {
       if (std::stoi(value) > 0) config.bottomline_height = std::stoi(value);
-    }
-    else if (key == "tab_size" || key == "tab_chars" || key == "tab_width") {
+    } else if (key == "tab_size" || key == "tab_chars" || key == "tab_width") {
       if (std::stoi(value) > 0) config.tab_size = std::stoi(value);
     }
   }
 }
 void load_config() {
-  /* default values */
-  config.line_numbers = true;
-  config.verbose_open = false;
-  config.menubar = false;
-  config.bottomline_height = 2;
-  config.tab_size = 4;
-
   if (get_config_path().empty() || !file_exists(get_config_path())) return;
 
   parse_config(get_config_path());
@@ -394,86 +393,164 @@ void load_directory(std::string path) {
 
 
 void set_mode(Mode target_mode, int submode = 0) {
-  switch (target_mode) {
-    case NORMAL:
-      editor.mode = NORMAL;
-      cursor.type = BLOCK;
-      if (submode != 1) {
-        editor.bottomline = " NORMAL   │ " + buffer.name;
-      }
-      break;
-
-    case WRITE:
-      editor.mode = WRITE;
-      cursor.type = BAR;
-      editor.insert = FALSE;
-      break;
-
-    case SELECT:
-      if (submode == 2) {
-        editor.mode = SELECT;
+  if (config.modal == true) {
+    switch (target_mode) {
+      case NORMAL:
+        editor.mode = NORMAL;
         cursor.type = BLOCK;
-        selection.type = 2;
-        selection.start_line = editor.cur_line;
-        selection.start_char = 0;
-        selection.end_line = editor.cur_line;
-        selection.end_char = buffer.content[editor.cur_line].size();
-      } else if (submode == 1){
-        editor.mode = SELECT;
+        if (submode != 1) {
+          editor.bottomline = " NORMAL   │ " + buffer.name;
+        }
+        break;
+
+      case WRITE:
+        editor.mode = WRITE;
+        cursor.type = BAR;
+        editor.insert = FALSE;
+        break;
+
+      case SELECT:
+        if (submode == 2) {
+          editor.mode = SELECT;
+          cursor.type = BLOCK;
+          selection.type = 2;
+          selection.start_line = editor.cur_line;
+          selection.start_char = 0;
+          selection.end_line = editor.cur_line;
+          selection.end_char = buffer.content[editor.cur_line].size();
+        } else if (submode == 1){
+          editor.mode = SELECT;
+          cursor.type = BLOCK;
+          selection.anchor_line = editor.cur_line;
+          selection.anchor_char = editor.cur_char;
+          selection.type = 1;
+          selection.start_line = editor.cur_line;
+          selection.start_char = editor.cur_char;
+          selection.end_line = editor.cur_line;
+          selection.end_char = editor.cur_char;
+        }
+        break;
+
+      case MOVE:
+        editor.mode = MOVE;
         cursor.type = BLOCK;
-        selection.anchor_line = editor.cur_line;
-        selection.anchor_char = editor.cur_char;
-        selection.type = 1;
-        selection.start_line = editor.cur_line;
-        selection.start_char = editor.cur_char;
-        selection.end_line = editor.cur_line;
-        selection.end_char = editor.cur_char;
-      }
-      break;
+        break;
 
-    case MOVE:
-      editor.mode = MOVE;
-      cursor.type = BLOCK;
-      break;
+      case GOTO:
+        editor.mode = GOTO;
+        cursor.type = BLOCK;
+        break;
 
-    case GOTO:
-      editor.mode = GOTO;
-      cursor.type = BLOCK;
-      break;
+      case FIND:
+        editor.mode = FIND;
+        cursor.type = BLOCK;
+        break;
 
-    case FIND:
-      editor.mode = FIND;
-      cursor.type = BLOCK;
-      break;
+      case SAVE:
+        editor.mode = SAVE;
+        cursor.type = HIDDEN;
+        break;
 
-    case SAVE:
-      editor.mode = SAVE;
-      cursor.type = HIDDEN;
-      break;
+      case NEW:
+        editor.mode = NEW;
+        cursor.type = HIDDEN;
+        break;
 
-    case NEW:
-      editor.mode = NEW;
-      cursor.type = HIDDEN;
-      break;
+      case OPEN:
+        editor.mode = OPEN;
+        cursor.type = BLOCK;
+        load_directory(editor.dir);
+        if (submode != 1) {
+          editor.bottomline = " OPEN     │ " + editor.dir + "/";
+        }
+        break;
 
-    case OPEN:
-      editor.mode = OPEN;
-      cursor.type = BLOCK;
-      load_directory(editor.dir);
-      if (submode != 1) {
-        editor.bottomline = " OPEN     │ " + editor.dir + "/";
-      }
-      break;
+      case RENAME:
+        editor.mode = RENAME;
+        cursor.type = BLOCK;
+        break;
 
-    case RENAME:
-      editor.mode = RENAME;
-      cursor.type = BLOCK;
-      break;
+      case SHELL:
+        editor.mode = SHELL;
+        cursor.type = HIDDEN;
+        break;
+    }
+  } else { // CUA
+    switch (target_mode) {
+      case NORMAL:
+        editor.mode = NORMAL;
+        cursor.type = BAR;
+        if (submode != 1) {
+          editor.bottomline = " NORMAL   │ " + buffer.name;
+        }
+        break;
 
-    case SHELL:
-      editor.mode = SHELL;
-      cursor.type = HIDDEN;
-      break;
+      case SELECT:
+        if (submode == 2) {
+          editor.mode = SELECT;
+          cursor.type = BLOCK;
+          selection.type = 2;
+          selection.start_line = editor.cur_line;
+          selection.start_char = 0;
+          selection.end_line = editor.cur_line;
+          selection.end_char = buffer.content[editor.cur_line].size();
+        } else if (submode == 1){
+          editor.mode = SELECT;
+          cursor.type = BLOCK;
+          selection.anchor_line = editor.cur_line;
+          selection.anchor_char = editor.cur_char;
+          selection.type = 1;
+          selection.start_line = editor.cur_line;
+          selection.start_char = editor.cur_char;
+          selection.end_line = editor.cur_line;
+          selection.end_char = editor.cur_char;
+        }
+        break;
+
+      case MOVE:
+        editor.mode = MOVE;
+        cursor.type = BLOCK;
+        break;
+
+      case GOTO:
+        editor.mode = GOTO;
+        cursor.type = BLOCK;
+        break;
+
+      case FIND:
+        editor.mode = FIND;
+        cursor.type = BLOCK;
+        break;
+
+      case SAVE:
+        editor.mode = SAVE;
+        cursor.type = HIDDEN;
+        break;
+
+      case NEW:
+        editor.mode = NEW;
+        cursor.type = HIDDEN;
+        break;
+
+      case OPEN:
+        editor.mode = OPEN;
+        cursor.type = BLOCK;
+        load_directory(editor.dir);
+        if (submode != 1) {
+          editor.bottomline = " OPEN     │ " + editor.dir + "/";
+        }
+        break;
+
+      case RENAME:
+        editor.mode = RENAME;
+        cursor.type = BLOCK;
+        break;
+
+      case SHELL:
+        editor.mode = SHELL;
+        cursor.type = HIDDEN;
+        break;
+    }
   }
 }
 
@@ -991,11 +1068,7 @@ void render_bottomline() {
   if (editor.bottomline.empty()) {
     // could turn this into a switch statement, although this is one of the cases where a switch statement would result in more code
     if (editor.mode == NONE) {
-      if (config.menubar) {
-        editor.bottomline = "          │ ";
-      } else {
-        editor.bottomline = "          │ [O]pen file   [N]ew file   [Q]uit";
-      }
+      editor.bottomline = "          │ ";
     } else if (editor.mode == NORMAL) {
       editor.bottomline = " NORMAL   │ " + buffer.name;
     } else if (editor.mode == WRITE) {
@@ -1164,328 +1237,589 @@ int main(int argc, char* argv[]) {
       editor.bottomline = "";
     }
 
-    switch (editor.mode) {
-      case NONE:
-        if (ch == 27) goto end_loop;
-        else if (ch == 'O' || ch == 'o') set_mode(OPEN);
-        else if (ch == 'N' || ch == 'n') set_mode(NEW);
-        else if (ch == 'Q' || ch == 'q') goto end_loop;
-        break;
-
-      case NORMAL:
-        if (ch == 27) search.last_find = "";
-        else if (ch == '\n') set_mode(WRITE);
-        else if (ch == 'v') set_mode(SELECT, 1);
-        else if (ch == 'm') set_mode(MOVE);
-        else if (ch == 'g') set_mode(GOTO);
-        else if (ch == 'F') set_mode(FIND);
-        else if (ch == 'f') {
-          if (!search.last_find.empty()) {
-            if (!find_forward(search.last_find)) {
-              editor.bottomline = " FIND     │ No further matches.";
-              search.last_find = "";
-            }
-          } else {
-            set_mode(FIND);
-          }
-        }
-        else if (ch == '$') set_mode(SHELL);
-        else if (ch == KEY_UP) move_up();
-        else if (ch == KEY_DOWN) move_down();
-        else if (ch == KEY_LEFT) move_left();
-        else if (ch == KEY_RIGHT) move_right();
-        else if (ch == 'Q' || ch == 'q') goto end_loop;
-        else if (ch == 's') save(true);
-        else if (ch == 'S') set_mode(SAVE);
-        else if (ch == 'X') { save(true); goto end_loop; }
-        else if (ch == 'O') set_mode(OPEN);
-        else if (ch == 'N') set_mode(NEW);
-        else if (ch == ' ') move_right();
-        else if (ch == KEY_BACKSPACE || ch == 127 || ch == 263 || ch == '\b') move_left();
-        else if (ch == 'd' || ch == KEY_DC || ch == 330) del_char(0);
-        else if (ch == 'D') del_line();
-        else if (ch == 'x') set_mode(SELECT, 2);
-        else if (ch == 't') buffer_top();
-        else if (ch == 'b') buffer_bottom();
-        else if (ch == KEY_HOME) editor.cur_char = 0;
-        else if (ch == KEY_END) editor.cur_char = utf8_width(buffer.content[editor.cur_line]);
-        else if (ch == 339) page_up();
-        else if (ch == 338) page_down();
-        break;
-
-      case WRITE:
-        if (ch == 27) set_mode(NORMAL);
-        else if (ch == KEY_UP) move_up();
-        else if (ch == KEY_DOWN) move_down();
-        else if (ch == KEY_LEFT) move_left();
-        else if (ch == KEY_RIGHT) move_right();
-        else if (ch == KEY_BACKSPACE || ch == 127 || ch == 263 || ch == '\b') del_char(-1);
-        else if (ch == KEY_DC || ch == 330) del_char(0);
-        else if (ch == '\n') newline();
-        else if (ch == KEY_IC) { // insert => toggle overwrite
-          if (editor.insert == true) { editor.insert = false; cursor.type = BAR;  }
-          else { editor.insert = true; cursor.type = LINE; }
-        }
-        else if (ch == KEY_HOME) editor.cur_char = 0;
-        else if (ch == KEY_END) editor.cur_char = utf8_width(buffer.content[editor.cur_line]);
-        else if (ch == 339) page_up();
-        else if (ch == 338) page_down();
-        else if (ch == '\t') { for (int i = 0; i < config.tab_size; i++) { insert_string(" "); } }
-        else if (std::iswprint(ch) || std::iswspace(ch)) {
-          if (editor.insert) del_char(0); // kind of a workaround tbh but it works
-          auto& line = buffer.content[editor.cur_line];
-          size_t byte_pos = utf8_byte_index(line, editor.cur_char);
-
-          char utf8[MB_LEN_MAX];
-          mbstate_t st{};
-          int len = wcrtomb(utf8, ch, &st);
-          if (len > 0) {
-            line.insert(byte_pos, utf8, len);
-            editor.cur_char++;
-          }
-        }
-        break;
-
-      case SELECT:
-        if (ch == 27) { set_mode(NORMAL); selection.type = 0; }
-        else if (ch == 'x') set_mode(SELECT, 2);
-        else if (ch == 'D' || ch == 'd' || ch == KEY_BACKSPACE || ch == KEY_DC || ch == 127 || ch == 263 || ch == 330 || ch == '\b') {
-          del_select();
-          set_mode(NORMAL);
-        }
-        // TODO: implement FIND for selected text as pattern
-        else if (ch == KEY_UP) move_up();
-        else if (ch == KEY_DOWN) move_down();
-        else if (ch == KEY_LEFT) move_left();
-        else if (ch == KEY_RIGHT) move_right();
-        else if (ch == KEY_HOME) editor.cur_char = 0;
-        else if (ch == KEY_END) editor.cur_char = utf8_width(buffer.content[editor.cur_line]);
-        else if (ch == 339) page_up();
-        else if (ch == 338) page_down();
-        else if (ch == 't') buffer_top();
-        else if (ch == 'b') buffer_bottom();
-        if (selection.type == 2) {
-          if (editor.cur_line < selection.start_line) {
-            selection.start_line = editor.cur_line;
-            selection.start_char = 0;
-          } else if (editor.cur_line > selection.end_line ){
-            selection.end_line = editor.cur_line;
-            selection.end_char = buffer.content[editor.cur_line].size();
-          }
-        }
-        else if (selection.type == 1) {
-          selection.start_line = selection.anchor_line;
-          selection.start_char = selection.anchor_char;
-
-          selection.end_line = editor.cur_line;
-          selection.end_char = editor.cur_char;
-        }
-        break;
-
-      case MOVE:
-        // TODO: make it work with selection
-        if (ch == 27) set_mode(NORMAL);
-        else if (ch == KEY_UP && editor.cur_line > 0) {
-          std::swap(buffer.content[editor.cur_line], buffer.content[editor.cur_line - 1]); move_up();
-        }
-        else if (ch == KEY_DOWN && editor.cur_line < buffer.content.size() - 1) {
-          std::swap(buffer.content[editor.cur_line], buffer.content[editor.cur_line + 1]); move_down();
-        }
-        else if (ch == 't') buffer_top();
-        else if (ch == 'b') buffer_bottom();
-        break;
-
-      case GOTO:
-        if (ch == 27) { editor.input.clear(); set_mode(NORMAL); }
-        else if (editor.input.empty() && ch == 't') { 
-          buffer_top();
-          editor.input.clear();
-          set_mode(NORMAL); 
-        } 
-        else if (editor.input.empty() && ch == 'b') { 
-          buffer_bottom();
-          editor.input.clear();
-          set_mode(NORMAL); 
-        } 
-        else if ((ch == KEY_BACKSPACE || ch == 127 || ch == 263 || ch == '\b') && !editor.input.empty()) editor.input.pop_back();
-        else if (ch == '\n') {
-           // TODO: optimize this shit
-           if (!editor.input.empty()) {
-             int inputnum; std::stringstream(editor.input) >> inputnum;
-             if (inputnum > 0 && inputnum <= buffer.content.size()) {
-               editor.cur_line = inputnum - 1;
-               if (buffer.content.size() <= ui.text_height) editor.scr_offset = 0;
-               else editor.scr_offset = (inputnum <= ui.text_height) ? 0 : inputnum - ui.text_height;
-               editor.input.clear(); set_mode(NORMAL);
-             } else { editor.bottomline = " GO TO    │ Error: Line number out of range."; editor.input.clear(); set_mode(NORMAL, 1); }
-           } else { editor.bottomline = " GO TO    │ Error: No line number inputted."; set_mode(NORMAL, 1); }
-        }
-        else if (std::isdigit(ch)) editor.input.push_back(ch);
-        break;
-
-      case FIND:
-        if (ch == 27) { editor.input.clear(); set_mode(NORMAL); }
-        else if ((ch == KEY_BACKSPACE || ch == 127 || ch == 263 || ch == '\b') && !editor.input.empty()) editor.input.pop_back();
-        else if (ch == '\n') {
-          if (!editor.input.empty()) {
-            search.last_find = editor.input;
-            if (!find_forward(search.last_find)) {
-              editor.bottomline = " FIND     │ Pattern not found.";
-              set_mode(NORMAL, 1);
-            } else {
-              set_mode(NORMAL);
-              editor.input.clear();
-            }
-          } else {
-            editor.bottomline = " FIND     │ Error: No pattern given to match.";
-            set_mode(NORMAL, 1);
-          }
-        }
-        else if (std::isprint(ch) || std::isspace(ch)) editor.input.push_back(ch);
-        break;
-
-      case SAVE:
-        if (ch == 27) { editor.input.clear(); set_mode(NORMAL); }
-        else if ((ch == KEY_BACKSPACE || ch == 127 || ch == 263 || ch == '\b') && !editor.input.empty()) editor.input.pop_back();
-        else if (ch == '\n') {
-           if (!editor.input.empty()) {
-             if (file_exists(editor.input)) editor.bottomline = " SAVE AS  │ Warning: That file already exists: choose a different one, or remove it.";
-             else {
-               buffer.name = editor.input;
-               editor.input.clear();
-               save(true);
-               set_mode(NORMAL); }
-           } else editor.bottomline = " SAVE AS  │ Error: No filename. Please input a filename.";  
-        }
-        else if (std::isprint(ch)) editor.input.push_back(ch);
-        break;
-
-      case NEW:
-        if (ch == 27) {
-          if (buffer.type == TEXT) {
-            set_mode(NORMAL);
-          } else if (buffer.type == FILEMANAGER) {
-            set_mode(OPEN);
-          } else {
-            goto end_loop;
-          }
-        }
-        else if ((ch == KEY_BACKSPACE || ch == 127 || ch == 263 || ch == '\b') && !editor.input.empty()) editor.input.pop_back();
-        else if (ch == '\n') {
-          if (!editor.input.empty()) {
-            if (file_exists(editor.input)) editor.bottomline = " NEW FILE │ Warning: File already exists."; 
-            else {
-              if (buffer.type == TEXT) {
-                buffer.name = editor.input;
-                editor.input.clear();
-                save(true);
-                set_mode(NORMAL);
-              } else if (buffer.type == FILEMANAGER) {
-                std::string cmd = "touch " + editor.input;
-                run_shellcmd(cmd, false);
-                editor.input.clear();
-                update_screen();
-                set_mode(OPEN);
-              } else if (buffer.type == EMPTY) {
-                buffer.type = TEXT;
-                buffer.name = editor.input;
-                editor.input.clear();
-                set_mode(NORMAL);
+    if (config.modal == true) {
+      switch (editor.mode) {
+        case NONE:
+          if (ch == 27) goto end_loop;
+          else if (ch == 'O' || ch == 'o') set_mode(OPEN);
+          else if (ch == 'N' || ch == 'n') set_mode(NEW);
+          else if (ch == 'Q' || ch == 'q') goto end_loop;
+          break;
+   
+        case NORMAL:
+          if (ch == 27) search.last_find = "";
+          else if (ch == '\n') set_mode(WRITE);
+          else if (ch == 'v') set_mode(SELECT, 1);
+          else if (ch == 'm') set_mode(MOVE);
+          else if (ch == 'g') set_mode(GOTO);
+          else if (ch == 'F') set_mode(FIND);
+          else if (ch == 'f') {
+            if (!search.last_find.empty()) {
+              if (!find_forward(search.last_find)) {
+                editor.bottomline = " FIND     │ No further matches.";
+                search.last_find = "";
               }
+            } else {
+              set_mode(FIND);
             }
-          } else editor.bottomline = " NEW FILE │ Error: No filename. Please input a filename.";  
-        }
-        else if (std::isprint(ch)) editor.input.push_back(ch);
-        break;
-
-      case OPEN:
-        if (ch == 'Q' || ch == 'q') goto end_loop;
-        else if (ch == KEY_UP && editor.cur_line > 0) move_up();
-        else if (ch == KEY_DOWN && editor.cur_line < buffer.dir_content.size() - 1) move_down();
-        else if (ch == 't' || ch == KEY_HOME) buffer_top();
-        else if (ch == 'b' || ch == KEY_END) buffer_bottom();
-        else if (ch == 339) page_up();
-        else if (ch == 338) page_down();
-        else if (ch == 'N' || ch == 'n') set_mode(NEW);
-        else if (ch == 'D' || ch == 'd' || ch == KEY_DC || ch == 330) {
-          if (buffer.dir_content.empty()) break;
-
-          auto entry = buffer.dir_content[editor.cur_line];
-
-          if (entry.name == "..") {
-            editor.bottomline = " OPEN     │ Error: Cannot delete '..',";
-            break;
           }
-
-          std::string fullpath = editor.dir + "/" + entry.name;
-
-          editor.bottomline = " DELETE   │ Are you sure you want to delete '" + entry.name + "'? Press [Y] [S-Y] or [enter] to delete.";
-          update_screen();
-          int confirm = getch();
-          if (confirm == 'Y' || confirm == 'y' || confirm == '\n') {
-            if (del_path(fullpath, entry.is_dir)) {
-              editor.bottomline = " DELETE   │ Deleted: " + entry.name;
-              load_directory(editor.dir);
-
-              if (editor.cur_line >= buffer.dir_content.size()) editor.cur_line = buffer.dir_content.size() - 1;
-              if (editor.cur_line < 0) editor.cur_line = 0;
-            } else { editor.bottomline = " DELETE   │ Error: Failed to delete."; }
-          } else { editor.bottomline = " DELETE   │ Cancelled by user."; }
-        }
-        else if (ch == 'r') {
-          if (buffer.dir_content.empty()) break;
-          auto entry = buffer.dir_content[editor.cur_line];
-          if (entry.name == "..") break;
-          editor.input = entry.name;
-          set_mode(RENAME);
-        }
-        else if (ch == '\n') {
-          auto entry = buffer.dir_content[editor.cur_line];
-          std::string fullpath = editor.dir + "/" + entry.name;
-
-          if (entry.is_dir) {
-            load_directory(std::filesystem::canonical(fullpath).string());
-          } else {
-            open_file(fullpath);
+          else if (ch == '$') set_mode(SHELL);
+          else if (ch == KEY_UP) move_up();
+          else if (ch == KEY_DOWN) move_down();
+          else if (ch == KEY_LEFT) move_left();
+          else if (ch == KEY_RIGHT) move_right();
+          else if (ch == 'Q' || ch == 'q') goto end_loop;
+          else if (ch == 's') save(true);
+          else if (ch == 'S') set_mode(SAVE);
+          else if (ch == 'X') { save(true); goto end_loop; }
+          else if (ch == 'O') set_mode(OPEN);
+          else if (ch == 'N') set_mode(NEW);
+          else if (ch == ' ') move_right();
+          else if (ch == KEY_BACKSPACE || ch == 127 || ch == 263 || ch == '\b') move_left();
+          else if (ch == 'd' || ch == KEY_DC || ch == 330) del_char(0);
+          else if (ch == 'D') del_line();
+          else if (ch == 'x') set_mode(SELECT, 2);
+          else if (ch == 't') buffer_top();
+          else if (ch == 'b') buffer_bottom();
+          else if (ch == KEY_HOME) editor.cur_char = 0;
+          else if (ch == KEY_END) editor.cur_char = utf8_width(buffer.content[editor.cur_line]);
+          else if (ch == 339) page_up();
+          else if (ch == 338) page_down();
+          break;
+   
+        case WRITE:
+          if (ch == 27) set_mode(NORMAL);
+          else if (ch == KEY_UP) move_up();
+          else if (ch == KEY_DOWN) move_down();
+          else if (ch == KEY_LEFT) move_left();
+          else if (ch == KEY_RIGHT) move_right();
+          else if (ch == KEY_BACKSPACE || ch == 127 || ch == 263 || ch == '\b') del_char(-1);
+          else if (ch == KEY_DC || ch == 330) del_char(0);
+          else if (ch == '\n') newline();
+          else if (ch == KEY_IC) { // insert => toggle overwrite
+            if (editor.insert == true) { editor.insert = false; cursor.type = BAR;  }
+            else { editor.insert = true; cursor.type = LINE; }
           }
-        }
-        break;
-
-      case RENAME:
-        if (ch == 27) { editor.input.clear(); set_mode(OPEN); }
-        else if ((ch == KEY_BACKSPACE || ch == 127 || ch == 263 || ch == '\b') && !editor.input.empty()) editor.input.pop_back();
-        else if (ch == '\n') {
-          if (editor.input.empty()) editor.bottomline = " RENAME   │ Error: Empty name.";
-          else if (editor.input == ".." || editor.input == "." || editor.input == "/") editor.bottomline = " RENAME   │ Error: Invalid filename.";
-          else {
+          else if (ch == KEY_HOME) editor.cur_char = 0;
+          else if (ch == KEY_END) editor.cur_char = utf8_width(buffer.content[editor.cur_line]);
+          else if (ch == 339) page_up();
+          else if (ch == 338) page_down();
+          else if (ch == '\t') { for (int i = 0; i < config.tab_size; i++) { insert_string(" "); } }
+          else if (std::iswprint(ch) || std::iswspace(ch)) {
+            if (editor.insert) del_char(0); // kind of a workaround tbh but it works
+            auto& line = buffer.content[editor.cur_line];
+            size_t byte_pos = utf8_byte_index(line, editor.cur_char);
+   
+            char utf8[MB_LEN_MAX];
+            mbstate_t st{};
+            int len = wcrtomb(utf8, ch, &st);
+            if (len > 0) {
+              line.insert(byte_pos, utf8, len);
+              editor.cur_char++;
+            }
+          }
+          break;
+   
+        case SELECT:
+          if (ch == 27) { set_mode(NORMAL); selection.type = 0; }
+          else if (ch == 'x') set_mode(SELECT, 2);
+          else if (ch == 'D' || ch == 'd' || ch == KEY_BACKSPACE || ch == KEY_DC || ch == 127 || ch == 263 || ch == 330 || ch == '\b') {
+            del_select();
+            set_mode(NORMAL);
+          }
+          // TODO: implement FIND for selected text as pattern
+          else if (ch == KEY_UP) move_up();
+          else if (ch == KEY_DOWN) move_down();
+          else if (ch == KEY_LEFT) move_left();
+          else if (ch == KEY_RIGHT) move_right();
+          else if (ch == KEY_HOME) editor.cur_char = 0;
+          else if (ch == KEY_END) editor.cur_char = utf8_width(buffer.content[editor.cur_line]);
+          else if (ch == 339) page_up();
+          else if (ch == 338) page_down();
+          else if (ch == 't') buffer_top();
+          else if (ch == 'b') buffer_bottom();
+          if (selection.type == 2) {
+            if (editor.cur_line < selection.start_line) {
+              selection.start_line = editor.cur_line;
+              selection.start_char = 0;
+            } else if (editor.cur_line > selection.end_line ){
+              selection.end_line = editor.cur_line;
+              selection.end_char = buffer.content[editor.cur_line].size();
+            }
+          }
+          else if (selection.type == 1) {
+            selection.start_line = selection.anchor_line;
+            selection.start_char = selection.anchor_char;
+   
+            selection.end_line = editor.cur_line;
+            selection.end_char = editor.cur_char;
+          }
+          break;
+   
+        case MOVE:
+          // TODO: make it work with selection
+          if (ch == 27) set_mode(NORMAL);
+          else if (ch == KEY_UP && editor.cur_line > 0) {
+            std::swap(buffer.content[editor.cur_line], buffer.content[editor.cur_line - 1]); move_up();
+          }
+          else if (ch == KEY_DOWN && editor.cur_line < buffer.content.size() - 1) {
+            std::swap(buffer.content[editor.cur_line], buffer.content[editor.cur_line + 1]); move_down();
+          }
+          else if (ch == 't') buffer_top();
+          else if (ch == 'b') buffer_bottom();
+          break;
+   
+        case GOTO:
+          if (ch == 27) { editor.input.clear(); set_mode(NORMAL); }
+          else if (editor.input.empty() && ch == 't') { 
+            buffer_top();
+            editor.input.clear();
+            set_mode(NORMAL); 
+          } 
+          else if (editor.input.empty() && ch == 'b') { 
+            buffer_bottom();
+            editor.input.clear();
+            set_mode(NORMAL); 
+          } 
+          else if ((ch == KEY_BACKSPACE || ch == 127 || ch == 263 || ch == '\b') && !editor.input.empty()) editor.input.pop_back();
+          else if (ch == '\n') {
+             // TODO: optimize this shit
+             if (!editor.input.empty()) {
+               int inputnum; std::stringstream(editor.input) >> inputnum;
+               if (inputnum > 0 && inputnum <= buffer.content.size()) {
+                 editor.cur_line = inputnum - 1;
+                 if (buffer.content.size() <= ui.text_height) editor.scr_offset = 0;
+                 else editor.scr_offset = (inputnum <= ui.text_height) ? 0 : inputnum - ui.text_height;
+                 editor.input.clear(); set_mode(NORMAL);
+               } else { editor.bottomline = " GO TO    │ Error: Line number out of range."; editor.input.clear(); set_mode(NORMAL, 1); }
+             } else { editor.bottomline = " GO TO    │ Error: No line number inputted."; set_mode(NORMAL, 1); }
+          }
+          else if (std::isdigit(ch)) editor.input.push_back(ch);
+          break;
+   
+        case FIND:
+          if (ch == 27) { editor.input.clear(); set_mode(NORMAL); }
+          else if ((ch == KEY_BACKSPACE || ch == 127 || ch == 263 || ch == '\b') && !editor.input.empty()) editor.input.pop_back();
+          else if (ch == '\n') {
+            if (!editor.input.empty()) {
+              search.last_find = editor.input;
+              if (!find_forward(search.last_find)) {
+                editor.bottomline = " FIND     │ Pattern not found.";
+                set_mode(NORMAL, 1);
+              } else {
+                set_mode(NORMAL);
+                editor.input.clear();
+              }
+            } else {
+              editor.bottomline = " FIND     │ Error: No pattern given to match.";
+              set_mode(NORMAL, 1);
+            }
+          }
+          else if (std::isprint(ch) || std::isspace(ch)) editor.input.push_back(ch);
+          break;
+   
+        case SAVE:
+          if (ch == 27) { editor.input.clear(); set_mode(NORMAL); }
+          else if ((ch == KEY_BACKSPACE || ch == 127 || ch == 263 || ch == '\b') && !editor.input.empty()) editor.input.pop_back();
+          else if (ch == '\n') {
+             if (!editor.input.empty()) {
+               if (file_exists(editor.input)) editor.bottomline = " SAVE AS  │ Warning: That file already exists: choose a different one, or remove it.";
+               else {
+                 buffer.name = editor.input;
+                 editor.input.clear();
+                 save(true);
+                 set_mode(NORMAL); }
+             } else editor.bottomline = " SAVE AS  │ Error: No filename. Please input a filename.";  
+          }
+          else if (std::isprint(ch)) editor.input.push_back(ch);
+          break;
+   
+        case NEW:
+          if (ch == 27) {
+            if (buffer.type == TEXT) {
+              set_mode(NORMAL);
+            } else if (buffer.type == FILEMANAGER) {
+              set_mode(OPEN);
+            } else {
+              goto end_loop;
+            }
+          }
+          else if ((ch == KEY_BACKSPACE || ch == 127 || ch == 263 || ch == '\b') && !editor.input.empty()) editor.input.pop_back();
+          else if (ch == '\n') {
+            if (!editor.input.empty()) {
+              if (file_exists(editor.input)) editor.bottomline = " NEW FILE │ Warning: File already exists."; 
+              else {
+                if (buffer.type == TEXT) {
+                  buffer.name = editor.input;
+                  editor.input.clear();
+                  save(true);
+                  set_mode(NORMAL);
+                } else if (buffer.type == FILEMANAGER) {
+                  std::string cmd = "touch " + editor.input;
+                  run_shellcmd(cmd, false);
+                  editor.input.clear();
+                  update_screen();
+                  set_mode(OPEN);
+                } else if (buffer.type == EMPTY) {
+                  buffer.type = TEXT;
+                  buffer.name = editor.input;
+                  editor.input.clear();
+                  set_mode(NORMAL);
+                }
+              }
+            } else editor.bottomline = " NEW FILE │ Error: No filename. Please input a filename.";  
+          }
+          else if (std::isprint(ch)) editor.input.push_back(ch);
+          break;
+   
+        case OPEN:
+          if (ch == 'Q' || ch == 'q') goto end_loop;
+          else if (ch == KEY_UP && editor.cur_line > 0) move_up();
+          else if (ch == KEY_DOWN && editor.cur_line < buffer.dir_content.size() - 1) move_down();
+          else if (ch == 't' || ch == KEY_HOME) buffer_top();
+          else if (ch == 'b' || ch == KEY_END) buffer_bottom();
+          else if (ch == 339) page_up();
+          else if (ch == 338) page_down();
+          else if (ch == 'N' || ch == 'n') set_mode(NEW);
+          else if (ch == 'D' || ch == 'd' || ch == KEY_DC || ch == 330) {
+            if (buffer.dir_content.empty()) break;
+   
+            auto entry = buffer.dir_content[editor.cur_line];
+   
+            if (entry.name == "..") {
+              editor.bottomline = " OPEN     │ Error: Cannot delete '..',";
+              break;
+            }
+   
+            std::string fullpath = editor.dir + "/" + entry.name;
+   
+            editor.bottomline = " DELETE   │ Are you sure you want to delete '" + entry.name + "'? Press [Y] [S-Y] or [enter] to delete.";
+            update_screen();
+            int confirm = getch();
+            if (confirm == 'Y' || confirm == 'y' || confirm == '\n') {
+              if (del_path(fullpath, entry.is_dir)) {
+                editor.bottomline = " DELETE   │ Deleted: " + entry.name;
+                load_directory(editor.dir);
+   
+                if (editor.cur_line >= buffer.dir_content.size()) editor.cur_line = buffer.dir_content.size() - 1;
+                if (editor.cur_line < 0) editor.cur_line = 0;
+              } else { editor.bottomline = " DELETE   │ Error: Failed to delete."; }
+            } else { editor.bottomline = " DELETE   │ Cancelled by user."; }
+          }
+          else if (ch == 'r') {
+            if (buffer.dir_content.empty()) break;
             auto entry = buffer.dir_content[editor.cur_line];
             if (entry.name == "..") break;
-            std::string oldpath = editor.dir + "/" + entry.name;
-            std::string newpath = editor.dir + "/" + editor.input;
-            if (std::filesystem::exists(newpath)) editor.bottomline = " RENAME   │ Warning: File already exists.";
-            else {
-              std::filesystem::rename(oldpath, newpath);
-              editor.bottomline = " RENAME   │ Rename successful.";
+            editor.input = entry.name;
+            set_mode(RENAME);
+          }
+          else if (ch == '\n') {
+            auto entry = buffer.dir_content[editor.cur_line];
+            std::string fullpath = editor.dir + "/" + entry.name;
+   
+            if (entry.is_dir) {
+              load_directory(std::filesystem::canonical(fullpath).string());
+            } else {
+              open_file(fullpath);
             }
           }
-          editor.input.clear();
-          set_mode(OPEN);
-          load_directory(editor.dir);
-        }
-        else if (std::isprint(ch)) editor.input.push_back(ch);
-        break;
+          break;
+   
+        case RENAME:
+          if (ch == 27) { editor.input.clear(); set_mode(OPEN); }
+          else if ((ch == KEY_BACKSPACE || ch == 127 || ch == 263 || ch == '\b') && !editor.input.empty()) editor.input.pop_back();
+          else if (ch == '\n') {
+            if (editor.input.empty()) editor.bottomline = " RENAME   │ Error: Empty name.";
+            else if (editor.input == ".." || editor.input == "." || editor.input == "/") editor.bottomline = " RENAME   │ Error: Invalid filename.";
+            else {
+              auto entry = buffer.dir_content[editor.cur_line];
+              if (entry.name == "..") break;
+              std::string oldpath = editor.dir + "/" + entry.name;
+              std::string newpath = editor.dir + "/" + editor.input;
+              if (std::filesystem::exists(newpath)) editor.bottomline = " RENAME   │ Warning: File already exists.";
+              else {
+                std::filesystem::rename(oldpath, newpath);
+                editor.bottomline = " RENAME   │ Rename successful.";
+              }
+            }
+            editor.input.clear();
+            set_mode(OPEN);
+            load_directory(editor.dir);
+          }
+          else if (std::isprint(ch)) editor.input.push_back(ch);
+          break;
+   
+        case SHELL:
+          if (ch == 27) { editor.input.clear(); set_mode(NORMAL); }
+          else if ((ch == KEY_BACKSPACE || ch == 127 || ch == 263 || ch == '\b') && !editor.input.empty()) editor.input.pop_back();
+          else if (ch == '\n') {
+            std::string cmdout = run_shellcmd(editor.input, true);
+            insert_string(cmdout);
+            editor.input.clear();
+            set_mode(NORMAL);
+          }
+          else if (std::isprint(ch)) editor.input.push_back(ch);
+          break;
+      }
+    } else { // CUA
+      switch (editor.mode) {
+        case NONE:
+          if (ch == 27) goto end_loop;
+          else if (ch == CTRL('o')) set_mode(OPEN);
+          else if (ch == CTRL('n')) set_mode(NEW);
+          else if (ch == CTRL('q')) goto end_loop;
+          break;
+   
+        case NORMAL:
+          if (ch == 27) search.last_find = "";
+          else if (ch == CTRL('g')) set_mode(GOTO);
+          else if (ch == CTRL('F')) set_mode(FIND);
+          else if (ch == CTRL('f')) {
+            if (!search.last_find.empty()) {
+              if (!find_forward(search.last_find)) {
+                editor.bottomline = " FIND     │ No further matches.";
+                search.last_find = "";
+              }
+            } else {
+              set_mode(FIND);
+            }
+          }
+          else if (ch == CTRL('$')) set_mode(SHELL);
+          else if (ch == KEY_UP) move_up();
+          else if (ch == KEY_DOWN) move_down();
+          else if (ch == KEY_LEFT) move_left();
+          else if (ch == KEY_RIGHT) move_right();
+          else if (ch == CTRL('q')) goto end_loop;
+          else if (ch == CTRL('s')) save(true);
+          else if (ch == CTRL('S')) set_mode(SAVE);
+          else if (ch == CTRL('o')) set_mode(OPEN);
+          else if (ch == CTRL('n')) set_mode(NEW);
+          else if (ch == CTRL('d')) del_line();
+          else if (ch == CTRL('t')) buffer_top();
+          else if (ch == CTRL('b')) buffer_bottom();
+          else if (ch == KEY_HOME) editor.cur_char = 0;
+          else if (ch == KEY_END) editor.cur_char = utf8_width(buffer.content[editor.cur_line]);
+          else if (ch == 339) page_up();
+          else if (ch == 338) page_down();
+          else if (ch == KEY_BACKSPACE || ch == 127 || ch == 263 || ch == '\b') del_char(-1);
+          else if (ch == KEY_DC || ch == 330) del_char(0);
+          else if (ch == '\n') newline();
+          else if (ch == KEY_IC) { // insert => toggle overwrite
+            if (editor.insert == true) { editor.insert = false; cursor.type = BAR;  }
+            else { editor.insert = true; cursor.type = LINE; }
+          } else if (ch == '\t') {
+            for (int i = 0; i < config.tab_size; i++) { insert_string(" "); }
+          } else if (std::iswprint(ch) || std::iswspace(ch)) {
+            if (editor.insert) del_char(0); // kind of a workaround tbh but it works
+            auto& line = buffer.content[editor.cur_line];
+            size_t byte_pos = utf8_byte_index(line, editor.cur_char);
+   
+            char utf8[MB_LEN_MAX];
+            mbstate_t st{};
+            int len = wcrtomb(utf8, ch, &st);
+            if (len > 0) {
+              line.insert(byte_pos, utf8, len);
+              editor.cur_char++;
+            }
+          }
+          break;
 
-      case SHELL:
-        if (ch == 27) { editor.input.clear(); set_mode(NORMAL); }
-        else if ((ch == KEY_BACKSPACE || ch == 127 || ch == 263 || ch == '\b') && !editor.input.empty()) editor.input.pop_back();
-        else if (ch == '\n') {
-          std::string cmdout = run_shellcmd(editor.input, true);
-          insert_string(cmdout);
-          editor.input.clear();
-          set_mode(NORMAL);
-        }
-        else if (std::isprint(ch)) editor.input.push_back(ch);
-        break;
+        // TODO: selection
+   
+        // TODO: moving
+   
+        case GOTO:
+          if (ch == 27) { editor.input.clear(); set_mode(NORMAL); }
+          else if (editor.input.empty() && ch == 't') { 
+            buffer_top();
+            editor.input.clear();
+            set_mode(NORMAL); 
+          } 
+          else if (editor.input.empty() && ch == 'b') { 
+            buffer_bottom();
+            editor.input.clear();
+            set_mode(NORMAL); 
+          } 
+          else if ((ch == KEY_BACKSPACE || ch == 127 || ch == 263 || ch == '\b') && !editor.input.empty()) editor.input.pop_back();
+          else if (ch == '\n') {
+             if (!editor.input.empty()) {
+               int inputnum; std::stringstream(editor.input) >> inputnum;
+               if (inputnum > 0 && inputnum <= buffer.content.size()) {
+                 editor.cur_line = inputnum - 1;
+                 if (buffer.content.size() <= ui.text_height) editor.scr_offset = 0;
+                 else editor.scr_offset = (inputnum <= ui.text_height) ? 0 : inputnum - ui.text_height;
+                 editor.input.clear(); set_mode(NORMAL);
+               } else { editor.bottomline = " GO TO    │ Error: Line number out of range."; editor.input.clear(); set_mode(NORMAL, 1); }
+             } else { editor.bottomline = " GO TO    │ Error: No line number inputted."; set_mode(NORMAL, 1); }
+          }
+          else if (std::isdigit(ch)) editor.input.push_back(ch);
+          break;
+   
+        case FIND:
+          if (ch == 27) { editor.input.clear(); set_mode(NORMAL); }
+          else if ((ch == KEY_BACKSPACE || ch == 127 || ch == 263 || ch == '\b') && !editor.input.empty()) editor.input.pop_back();
+          else if (ch == '\n') {
+            if (!editor.input.empty()) {
+              search.last_find = editor.input;
+              if (!find_forward(search.last_find)) {
+                editor.bottomline = " FIND     │ Pattern not found.";
+                set_mode(NORMAL, 1);
+              } else {
+                set_mode(NORMAL);
+                editor.input.clear();
+              }
+            } else {
+              editor.bottomline = " FIND     │ Error: No pattern given to match.";
+              set_mode(NORMAL, 1);
+            }
+          }
+          else if (std::isprint(ch) || std::isspace(ch)) editor.input.push_back(ch);
+          break;
+   
+        case SAVE:
+          if (ch == 27) { editor.input.clear(); set_mode(NORMAL); }
+          else if ((ch == KEY_BACKSPACE || ch == 127 || ch == 263 || ch == '\b') && !editor.input.empty()) editor.input.pop_back();
+          else if (ch == '\n') {
+             if (!editor.input.empty()) {
+               if (file_exists(editor.input)) editor.bottomline = " SAVE AS  │ Warning: That file already exists: choose a different one, or remove it.";
+               else {
+                 buffer.name = editor.input;
+                 editor.input.clear();
+                 save(true);
+                 set_mode(NORMAL); }
+             } else editor.bottomline = " SAVE AS  │ Error: No filename. Please input a filename.";  
+          }
+          else if (std::isprint(ch)) editor.input.push_back(ch);
+          break;
+   
+        case NEW:
+          if (ch == 27) {
+            if (buffer.type == TEXT) {
+              set_mode(NORMAL);
+            } else if (buffer.type == FILEMANAGER) {
+              set_mode(OPEN);
+            } else {
+              goto end_loop;
+            }
+          }
+          else if ((ch == KEY_BACKSPACE || ch == 127 || ch == 263 || ch == '\b') && !editor.input.empty()) editor.input.pop_back();
+          else if (ch == '\n') {
+            if (!editor.input.empty()) {
+              if (file_exists(editor.input)) editor.bottomline = " NEW FILE │ Warning: File already exists."; 
+              else {
+                if (buffer.type == TEXT) {
+                  buffer.name = editor.input;
+                  editor.input.clear();
+                  save(true);
+                  set_mode(NORMAL);
+                } else if (buffer.type == FILEMANAGER) {
+                  std::string cmd = "touch " + editor.input;
+                  run_shellcmd(cmd, false);
+                  editor.input.clear();
+                  update_screen();
+                  set_mode(OPEN);
+                } else if (buffer.type == EMPTY) {
+                  buffer.type = TEXT;
+                  buffer.name = editor.input;
+                  editor.input.clear();
+                  set_mode(NORMAL);
+                }
+              }
+            } else editor.bottomline = " NEW FILE │ Error: No filename. Please input a filename.";  
+          }
+          else if (std::isprint(ch)) editor.input.push_back(ch);
+          break;
+   
+        case OPEN:
+          if (ch == CTRL('q')) goto end_loop;
+          else if (ch == KEY_UP && editor.cur_line > 0) move_up();
+          else if (ch == KEY_DOWN && editor.cur_line < buffer.dir_content.size() - 1) move_down();
+          else if (ch == CTRL('t') || ch == KEY_HOME) buffer_top();
+          else if (ch == CTRL('b') || ch == KEY_END) buffer_bottom();
+          else if (ch == 339) page_up();
+          else if (ch == 338) page_down();
+          else if (ch == CTRL('n')) set_mode(NEW);
+          else if (ch == KEY_DC || ch == 330) {
+            if (buffer.dir_content.empty()) break;
+   
+            auto entry = buffer.dir_content[editor.cur_line];
+   
+            if (entry.name == "..") {
+              editor.bottomline = " OPEN     │ Error: Cannot delete '..',";
+              break;
+            }
+   
+            std::string fullpath = editor.dir + "/" + entry.name;
+   
+            editor.bottomline = " DELETE   │ Are you sure you want to delete '" + entry.name + "'? Press [Y] [S-Y] or [enter] to delete.";
+            update_screen();
+            int confirm = getch();
+            if (confirm == 'Y' || confirm == 'y' || confirm == '\n') {
+              if (del_path(fullpath, entry.is_dir)) {
+                editor.bottomline = " DELETE   │ Deleted: " + entry.name;
+                load_directory(editor.dir);
+   
+                if (editor.cur_line >= buffer.dir_content.size()) editor.cur_line = buffer.dir_content.size() - 1;
+                if (editor.cur_line < 0) editor.cur_line = 0;
+              } else { editor.bottomline = " DELETE   │ Error: Failed to delete."; }
+            } else { editor.bottomline = " DELETE   │ Cancelled by user."; }
+          }
+          else if (ch == 266) { // F2
+            if (buffer.dir_content.empty()) break;
+            auto entry = buffer.dir_content[editor.cur_line];
+            if (entry.name == "..") break;
+            editor.input = entry.name;
+            set_mode(RENAME);
+          }
+          else if (ch == '\n') {
+            auto entry = buffer.dir_content[editor.cur_line];
+            std::string fullpath = editor.dir + "/" + entry.name;
+   
+            if (entry.is_dir) {
+              load_directory(std::filesystem::canonical(fullpath).string());
+            } else {
+              open_file(fullpath);
+            }
+          }
+          break;
+   
+        case RENAME:
+          if (ch == 27) { editor.input.clear(); set_mode(OPEN); }
+          else if ((ch == KEY_BACKSPACE || ch == 127 || ch == 263 || ch == '\b') && !editor.input.empty()) editor.input.pop_back();
+          else if (ch == '\n') {
+            if (editor.input.empty()) editor.bottomline = " RENAME   │ Error: Empty name.";
+            else if (editor.input == ".." || editor.input == "." || editor.input == "/") editor.bottomline = " RENAME   │ Error: Invalid filename.";
+            else {
+              auto entry = buffer.dir_content[editor.cur_line];
+              if (entry.name == "..") break;
+              std::string oldpath = editor.dir + "/" + entry.name;
+              std::string newpath = editor.dir + "/" + editor.input;
+              if (std::filesystem::exists(newpath)) editor.bottomline = " RENAME   │ Warning: File already exists.";
+              else {
+                std::filesystem::rename(oldpath, newpath);
+                editor.bottomline = " RENAME   │ Rename successful.";
+              }
+            }
+            editor.input.clear();
+            set_mode(OPEN);
+            load_directory(editor.dir);
+          }
+          else if (std::isprint(ch)) editor.input.push_back(ch);
+          break;
+   
+        case SHELL:
+          if (ch == 27) { editor.input.clear(); set_mode(NORMAL); }
+          else if ((ch == KEY_BACKSPACE || ch == 127 || ch == 263 || ch == '\b') && !editor.input.empty()) editor.input.pop_back();
+          else if (ch == '\n') {
+            std::string cmdout = run_shellcmd(editor.input, true);
+            insert_string(cmdout);
+            editor.input.clear();
+            set_mode(NORMAL);
+          }
+          else if (std::isprint(ch)) editor.input.push_back(ch);
+          break;
+      }
+
     }
 
     if (buffer.type == TEXT) {

@@ -1,5 +1,17 @@
+# true -> modal keybinds, false -> cua-style keybinds
+modal = true
+
+# line numbers on the left side
 line_numbers = true
+
+# option for more information about files in OPEN mode
 verbose_open = false
+
+# menubar, will be clickable eventually
 menubar = false
+
+# idfk why i even added this option, but its there
 bottomline_height = 2
+
+# size of tabulations in spaces (pressing tab just inserts by default 4 spaces)
 tab_size = 4
