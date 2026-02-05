@@ -19,7 +19,6 @@ To install Kaczynski you have these options:
 ### Debian package:
 ```.deb``` package is available in this repository: [**APT Repository**](https://vani-tty1.github.io/vani-pkgs)
 
-
 ### RHEL/Fedora Package:
 
 available as an `.rpm` via this copr repo:
@@ -34,8 +33,9 @@ available as an `.rpm` via this copr repo:
 
 PKGBUILD soon...
 
-
 ## Building from source:
+
+Using the Makefile:
 
 ```bash
 git clone https://github.com/KozmunkasKalman/kaczynski-ted.git
@@ -45,7 +45,13 @@ cd kaczynski-ted
 make all
 ```
 
+OR
 
+Using the provided install script:
+
+```bash
+git clone https://github.com/KozmunkasKalman/kaczynski-ted.git && cd kaczynski-ted && chmod +x install.sh && bash ./install.sh
+```
 
 
 
