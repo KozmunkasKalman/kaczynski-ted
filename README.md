@@ -59,6 +59,7 @@ git clone https://github.com/KozmunkasKalman/kaczynski-ted.git && cd kaczynski-t
 
 ## Targets:
 
+- [ ] Abandon NCurses
 - [x] Installation script
 - [x] Create new files
 - [x] Write text in files
